@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method int getLocationId()
@@ -22,7 +21,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int|null getClosedAt()
  * @method void setClosedAt(?int $v)
  */
-class CycleCampaign extends Entity
+class CycleCampaign extends WorkspaceEntity
 {
 	protected int $locationId = 0;
 	/** Empty default so setStatus('open') is marked dirty for INSERT (Entity skip-unchanged). */
@@ -35,6 +34,7 @@ class CycleCampaign extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('locationId', 'integer');
 		$this->addType('status', 'string');
 		$this->addType('name', 'string');

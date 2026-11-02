@@ -33,7 +33,7 @@ class ProductLookupController extends Controller
 	public function lookup(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireOffice($uid);
+		$this->access->requireWrite($uid);
 		$barcode = $this->request->getParam('barcode', '');
 		try {
 			if (!is_string($barcode)) {

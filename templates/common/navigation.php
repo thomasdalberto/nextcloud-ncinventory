@@ -13,8 +13,8 @@ use OCP\Util;
  *
  * @var \OCP\IL10N $l
  * @var string $pageId
- * @var bool $isAppAdmin
- * @var bool $isOffice
+ * @var bool $isWorkspaceAdmin
+ * @var bool $canWrite
  * @var string $urlsJson
  * @var string $roleLabel
  * @var array $_
@@ -76,6 +76,13 @@ $isSettings = $activeNavId === 'settings';
 			</div>
 		</div>
 
+		<div class="iv-workspace-nav">
+			<a class="iv-workspace-link" href="<?php p($navUrls['workspaces'] ?? '#'); ?>"<?php if ($pageId === 'workspaces'): ?> aria-current="page"<?php endif; ?>>
+				<?php p($l->t('Workspaces')); ?>
+				<?php if (!empty($_['workspace'])): ?><span class="iv-nav__hint"><?php p($_['workspace']['name']); ?></span><?php endif; ?>
+			</a>
+		</div>
+
 		<ul class="nav-menu">
 			<li class="<?php p($isDashboard ? 'active' : ''); ?>">
 				<a <?php if ($isDashboard): ?>aria-current="page"<?php endif; ?> href="<?php p((string)($navUrls['dashboard'] ?? '#')); ?>"
@@ -109,7 +116,7 @@ $isSettings = $activeNavId === 'settings';
 					<?php $ivNavLabel($l->t('Movements'), $l->t('Booking history')); ?>
 				</a>
 			</li>
-			<?php if ($isOffice): ?>
+			<?php if ($canWrite): ?>
 				<li class="<?php p($isStocktake ? 'active' : ''); ?>">
 					<a <?php if ($isStocktake): ?>aria-current="page"<?php endif; ?> href="<?php p((string)($navUrls['stocktake'] ?? '#')); ?>"
 						title="<?php p($l->t('Stocktake: Cycle counts and Inventur campaigns')); ?>"
@@ -119,7 +126,7 @@ $isSettings = $activeNavId === 'settings';
 					</a>
 				</li>
 			<?php endif; ?>
-			<?php if ($isAppAdmin): ?>
+			<?php if ($isWorkspaceAdmin): ?>
 				<li class="nav-section-divider" role="separator" aria-hidden="true"></li>
 				<li class="nav-item-has-children <?php p($isSettings ? 'is-open' : ''); ?>">
 					<button class="nav-parent-toggle" type="button"
@@ -127,7 +134,7 @@ $isSettings = $activeNavId === 'settings';
 						aria-controls="iv-settings-subnav"
 						aria-label="<?php p($l->t('Open settings')); ?>">
 						<span class="iv-nav__icon" aria-hidden="true"><?php print_unescaped($ivNavIcon('shield')); ?></span>
-						<?php $ivNavLabel($l->t('Settings'), $l->t('Access, license, support')); ?>
+						<?php $ivNavLabel($l->t('Workspace settings'), $l->t('Members and stock policies')); ?>
 						<span class="nav-parent-chevron" aria-hidden="true"></span>
 					</button>
 					<ul id="iv-settings-subnav" class="nav-submenu" <?php p($isSettings ? '' : 'hidden'); ?>>
@@ -158,5 +165,14 @@ $isSettings = $activeNavId === 'settings';
 				</li>
 			<?php endif; ?>
 		</ul>
-	<?php include __DIR__ . '/../parts/feedback-nav-footer.php'; ?>
+
+		<?php if (!empty($_['isSystemAdmin'])): ?>
+			<div class="iv-app-settings-footer">
+				<button type="button" class="iv-app-settings-button" data-iv-app-settings aria-haspopup="dialog">
+					<span class="iv-nav__icon" aria-hidden="true"><?php print_unescaped($ivNavIcon('settings')); ?></span>
+					<span><?php p($l->t('App settings')); ?></span>
+				</button>
+			</div>
+		<?php endif; ?>
+
 	</div>

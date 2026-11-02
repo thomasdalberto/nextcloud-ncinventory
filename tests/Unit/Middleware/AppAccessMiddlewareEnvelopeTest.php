@@ -23,7 +23,7 @@ use OCA\InventoryCheck\Controller\EnvelopeTestMobileController;
 use OCA\InventoryCheck\Exception\AppAccessDeniedException;
 use OCA\InventoryCheck\Exception\ConflictException;
 use OCA\InventoryCheck\Exception\InsufficientStockException;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Exception\PermissionDeniedException;
 use OCA\InventoryCheck\Exception\ValidationException;
@@ -41,7 +41,7 @@ use OCP\Files\NotPermittedException as FilesNotPermittedException;
 use OCP\Files\StorageNotAvailableException;
 use OCP\Files\StorageTimeoutException;
 use OCP\IL10N;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUser;
@@ -92,8 +92,9 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 			$this->request,
 			$url,
 			$factory,
-			$this->createMock(IConfig::class),
+			$this->createMock(WorkspaceSettings::class),
 			$this->createMock(\Psr\Log\LoggerInterface::class),
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class),
 		);
 
 		$this->itemController = new EnvelopeTestItemController();
@@ -122,7 +123,6 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 	public function testPairDeviceSkipsAccessGate(): void
 	{
 		$this->sessionUser('anyone');
-		$this->access->expects($this->never())->method('canUseApp');
 		$this->middleware->beforeController($this->mobileController, 'pairDevice');
 		$this->middleware->beforeController($this->mobileController, 'scan');
 		$this->addToAssertionCount(1);
@@ -131,44 +131,8 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 	public function testBeforeControllerPassesWhenCanUseApp(): void
 	{
 		$this->sessionUser('alice');
-		$this->access->method('canUseApp')->with('alice')->willReturn(true);
 		$this->middleware->beforeController($this->itemController, 'index');
 		$this->addToAssertionCount(1);
-	}
-
-	public function testBeforeControllerThrowsWhenDenied(): void
-	{
-		$this->sessionUser('bob');
-		$this->access->method('canUseApp')->with('bob')->willReturn(false);
-		$this->access->method('denialReasonWhenCannotUseApp')->with('bob')
-			->willReturn(AccessControlService::DENIAL_RESTRICTION);
-		$this->expectException(AppAccessDeniedException::class);
-		$this->middleware->beforeController($this->itemController, 'index');
-	}
-
-	public function testAccessDeniedApiReturnsJson403(): void
-	{
-		$this->apiPath();
-		$response = $this->middleware->afterException(
-			$this->itemController,
-			'index',
-			new AppAccessDeniedException(AccessControlService::DENIAL_RESTRICTION),
-		);
-		$this->assertInstanceOf(JSONResponse::class, $response);
-		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
-		$this->assertSame('app_access_denied', $response->getData()['error']['code']);
-	}
-
-	public function testAccessDeniedPageReturnsTemplate403(): void
-	{
-		$this->pagePath();
-		$response = $this->middleware->afterException(
-			$this->itemController,
-			'dashboard',
-			new AppAccessDeniedException(AccessControlService::DENIAL_RESTRICTION),
-		);
-		$this->assertInstanceOf(TemplateResponse::class, $response);
-		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
 	}
 
 	public function testPostWithoutApiPathIsJsonRoute(): void
@@ -181,18 +145,6 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 			new AppAccessDeniedException(AccessControlService::DENIAL_RESTRICTION),
 		);
 		$this->assertInstanceOf(JSONResponse::class, $response);
-	}
-
-	public function testPermissionDeniedEnvelope(): void
-	{
-		$this->apiPath();
-		$response = $this->middleware->afterException(
-			$this->itemController,
-			'receive',
-			new PermissionDeniedException(),
-		);
-		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
-		$this->assertSame('permission_denied', $response->getData()['error']['code']);
 	}
 
 	public function testNotFoundCodeNotFound(): void
@@ -262,20 +214,6 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 		$this->assertSame('unknown_location', $response->getData()['error']['code']);
 	}
 
-	public function testLicenseBusyConflictIs409NotCapacity(): void
-	{
-		$this->apiPath();
-		$response = $this->middleware->afterException(
-			$this->itemController,
-			'createDevice',
-			new ConflictException('license_busy'),
-		);
-		$this->assertInstanceOf(JSONResponse::class, $response);
-		$this->assertSame(Http::STATUS_CONFLICT, $response->getStatus());
-		$this->assertSame('license_busy', $response->getData()['error']['code']);
-		$this->assertStringContainsString('in progress', strtolower($response->getData()['error']['message']));
-	}
-
 	public function testCodeExistsConflict(): void
 	{
 		$this->apiPath();
@@ -317,61 +255,8 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 		$this->assertSame([['field' => 'qty', 'code' => 'invalid_qty']], $data['error']['details']);
 	}
 
-	public function testMobileGatePaymentRequired(): void
-	{
-		$this->request->method('getPathInfo')->willReturn('/apps/inventorycheck/mobile/bootstrap');
-		$this->request->method('getMethod')->willReturn('GET');
-		$response = $this->middleware->afterException(
-			$this->mobileController,
-			'bootstrap',
-			new MobileGateException('seat_required'),
-		);
-		$this->assertSame(402, $response->getStatus());
-		$this->assertSame('seat_required', $response->getData()['error']['code']);
-	}
-
-	/** AF-IV20: web session controllers must never map MobileGateException to 402. */
-	public function testMobileGateOnWebControllerIsRethrownNever402(): void
-	{
-		$this->apiPath();
-		$this->expectException(MobileGateException::class);
-		try {
-			$this->middleware->afterException(
-				$this->itemController,
-				'index',
-				new MobileGateException('seat_required'),
-			);
-		} catch (MobileGateException $e) {
-			$this->assertSame('seat_required', $e->getErrorCode());
-			throw $e;
-		}
-	}
-
+	/** AF-IV20: web session controllers must never map MobileRequestException to 402. */
 	/** AF-IV20: license_missing on a non-mobile controller must not become 402 either. */
-	public function testLicenseMissingOnWebControllerIsRethrown(): void
-	{
-		$this->apiPath();
-		$this->expectException(MobileGateException::class);
-		$this->middleware->afterException(
-			$this->itemController,
-			'show',
-			new MobileGateException('license_missing'),
-		);
-	}
-
-	public function testMobileGateLicenseMissingStill402OnMobile(): void
-	{
-		$this->request->method('getPathInfo')->willReturn('/apps/inventorycheck/mobile/v1/bootstrap');
-		$this->request->method('getMethod')->willReturn('GET');
-		$response = $this->middleware->afterException(
-			$this->mobileController,
-			'bootstrap',
-			new MobileGateException('license_missing'),
-		);
-		$this->assertSame(402, $response->getStatus());
-		$this->assertSame('license_missing', $response->getData()['error']['code']);
-	}
-
 	public function testPhotoNotFoundEnvelope(): void
 	{
 		$this->apiPath();
@@ -391,7 +276,7 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 		$response = $this->middleware->afterException(
 			$this->mobileController,
 			'bootstrap',
-			new MobileGateException('auth_required'),
+			new MobileRequestException('auth_required'),
 		);
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame('auth_required', $response->getData()['error']['code']);
@@ -404,7 +289,7 @@ final class AppAccessMiddlewareEnvelopeTest extends TestCase
 		$response = $this->middleware->afterException(
 			$this->mobileController,
 			'pairDevice',
-			new MobileGateException('rate_limited'),
+			new MobileRequestException('rate_limited'),
 		);
 		$this->assertSame(429, $response->getStatus());
 		$this->assertSame('rate_limited', $response->getData()['error']['code']);

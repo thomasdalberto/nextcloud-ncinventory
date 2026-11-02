@@ -11,6 +11,7 @@ use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\ItemService;
 use OCA\InventoryCheck\Service\Pagination;
 use OCA\InventoryCheck\Service\QtyScale;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCA\InventoryCheck\Util\LabelSheet;
 use OCA\InventoryCheck\Util\LabelSvg;
 use OCP\AppFramework\Controller;
@@ -19,7 +20,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 
@@ -35,7 +36,8 @@ class ItemController extends Controller
 		private readonly ItemService $items,
 		private readonly AccessControlService $access,
 		private readonly IURLGenerator $urlGenerator,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
+		private readonly WorkspaceContext $workspace,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -49,14 +51,14 @@ class ItemController extends Controller
 		$active = $activeRaw === null || $activeRaw === '' ? null : filter_var($activeRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 		$lowStock = filter_var($this->request->getParam('lowStock', '0'), FILTER_VALIDATE_BOOLEAN);
 		$result = $this->items->list($this->access->currentUserId(), $q, $active, $lowStock, $page['limit'], $page['offset']);
-		$result['data'] = array_map(fn (array $i) => QtyScale::formatItem($i, $this->config), $result['data']);
+		$result['data'] = array_map(fn (array $i) => QtyScale::formatItem($i, $this->settings), $result['data']);
 		return new JSONResponse($result);
 	}
 
 	#[NoAdminRequired]
 	public function show(int $id): JSONResponse
 	{
-		return new JSONResponse(QtyScale::formatItem($this->items->get($this->access->currentUserId(), $id), $this->config));
+		return new JSONResponse(QtyScale::formatItem($this->items->get($this->access->currentUserId(), $id), $this->settings));
 	}
 
 	#[NoAdminRequired]
@@ -108,7 +110,7 @@ class ItemController extends Controller
 			[
 				'item' => $item,
 				'svg' => $svg,
-				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.item', ['id' => $id]),
+				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.item', ['id' => $id, 'workspaceId' => $this->workspace->id()]),
 				'downloadUrl' => $this->urlGenerator->linkToRoute('inventorycheck.item.label', ['id' => $id]),
 			],
 		);
@@ -164,7 +166,7 @@ class ItemController extends Controller
 			[
 				'labelsHtml' => $html,
 				'count' => count($items),
-				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.items'),
+				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.items', ['workspaceId' => $this->workspace->id()]),
 			],
 		);
 		$response->renderAs(TemplateResponse::RENDER_AS_BLANK);
@@ -175,14 +177,14 @@ class ItemController extends Controller
 	public function create(): JSONResponse
 	{
 		$input = $this->toStorageInput($this->request->getParams());
-		return new JSONResponse(QtyScale::formatItem($this->items->create($this->access->currentUserId(), $input), $this->config));
+		return new JSONResponse(QtyScale::formatItem($this->items->create($this->access->currentUserId(), $input), $this->settings));
 	}
 
 	#[NoAdminRequired]
 	public function update(int $id): JSONResponse
 	{
 		$input = $this->toStorageInput($this->request->getParams());
-		return new JSONResponse(QtyScale::formatItem($this->items->update($this->access->currentUserId(), $id, $input), $this->config));
+		return new JSONResponse(QtyScale::formatItem($this->items->update($this->access->currentUserId(), $id, $input), $this->settings));
 	}
 
 	#[NoAdminRequired]
@@ -200,7 +202,7 @@ class ItemController extends Controller
 	{
 		foreach (['reorderLevel', 'reorder_level', 'targetStock', 'target_stock'] as $key) {
 			if (array_key_exists($key, $input) && $input[$key] !== null && $input[$key] !== '') {
-				$input[$key] = QtyScale::toStorage($this->config, $input[$key]);
+				$input[$key] = QtyScale::toStorage($this->settings, $input[$key]);
 			}
 		}
 		return $input;
@@ -209,9 +211,9 @@ class ItemController extends Controller
 	/** @param array<string, mixed> $item */
 	private function formatItemWithBalances(array $item): array
 	{
-		$item = QtyScale::formatItem($item, $this->config);
+		$item = QtyScale::formatItem($item, $this->settings);
 		if (isset($item['balances']) && is_array($item['balances'])) {
-			$item['balances'] = array_map(fn (array $b) => QtyScale::formatBalance($b, $this->config), $item['balances']);
+			$item['balances'] = array_map(fn (array $b) => QtyScale::formatBalance($b, $this->settings), $item['balances']);
 		}
 		return $item;
 	}

@@ -12,7 +12,7 @@ use OCA\InventoryCheck\Service\QtyScale;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 
 /**
@@ -27,7 +27,7 @@ class MovementController extends Controller
 		IRequest $request,
 		private readonly MovementService $movements,
 		private readonly AccessControlService $access,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -52,7 +52,7 @@ class MovementController extends Controller
 			$page['offset'],
 			($rc = $this->request->getParam('reasonCode')) !== null && $rc !== '' ? (string)$rc : null,
 		);
-		$result['data'] = array_map(fn (array $m) => QtyScale::formatMovement($m, $this->config), $result['data']);
+		$result['data'] = array_map(fn (array $m) => QtyScale::formatMovement($m, $this->settings), $result['data']);
 		return new JSONResponse($result);
 	}
 
@@ -135,7 +135,7 @@ class MovementController extends Controller
 			isset($p['qty']) ? $this->toStorageQty($p['qty']) : null,
 			isset($p['qtyDelta']) ? $this->toStorageQty($p['qtyDelta']) : null,
 			isset($p['reason']) ? (string)$p['reason'] : null,
-			$this->access->isOffice($uid),
+			$this->access->canWrite($uid),
 			$this->lotCodeParam($p),
 			isset($p['reasonCode']) ? (string)$p['reasonCode'] : (isset($p['reason_code']) ? (string)$p['reason_code'] : null),
 			$this->locationCodeParam($p),
@@ -145,7 +145,7 @@ class MovementController extends Controller
 
 	private function toStorageQty(mixed $raw): int
 	{
-		return QtyScale::toStorage($this->config, $raw);
+		return QtyScale::toStorage($this->settings, $raw);
 	}
 
 	/** @param array<string, mixed> $p */
@@ -187,8 +187,8 @@ class MovementController extends Controller
 	 */
 	private function toDisplay(array $result): array
 	{
-		$result['movements'] = array_map(fn (array $m) => QtyScale::formatMovement($m, $this->config), $result['movements']);
-		$result['balances'] = array_map(fn (array $b) => QtyScale::formatBalance($b, $this->config), $result['balances']);
+		$result['movements'] = array_map(fn (array $m) => QtyScale::formatMovement($m, $this->settings), $result['movements']);
+		$result['balances'] = array_map(fn (array $b) => QtyScale::formatBalance($b, $this->settings), $result['balances']);
 		return $result;
 	}
 }

@@ -57,6 +57,7 @@ trait RowLocking
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from($this->getTableName())
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)));
+		$this->workspace->apply($qb);
 		$sql = $qb->getSQL() . $this->rowLockSuffix($exclusive);
 		$result = $this->db->executeQuery($sql, $qb->getParameters(), $qb->getParameterTypes());
 		$row = $result->fetch();

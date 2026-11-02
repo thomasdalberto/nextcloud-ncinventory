@@ -34,7 +34,7 @@ class ExportController extends Controller
 	public function index(): DataDownloadResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireOffice($uid);
+		$this->access->requireWrite($uid);
 		$itemId = $this->request->getParam('itemId');
 		$locationId = $this->request->getParam('locationId');
 		$from = $this->request->getParam('from');

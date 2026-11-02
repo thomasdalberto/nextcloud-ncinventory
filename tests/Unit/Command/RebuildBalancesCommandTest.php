@@ -24,6 +24,8 @@ final class RebuildBalancesCommandTest extends TestCase
 			$config,
 			$this->createMock(MovementMapper::class),
 			$this->createMock(BalanceMapper::class),
+			$this->scope(),
+			$this->workspaces(),
 		);
 		$tester = new CommandTester($cmd);
 		$code = $tester->execute([]);
@@ -47,7 +49,7 @@ final class RebuildBalancesCommandTest extends TestCase
 		$balances = $this->createMock(BalanceMapper::class);
 		$balances->method('search')->willReturn(['data' => [], 'total' => 0]);
 
-		$cmd = new RebuildBalancesCommand($db, $config, $movements, $balances);
+		$cmd = new RebuildBalancesCommand($db, $config, $movements, $balances, $this->scope(), $this->workspaces());
 		$tester = new CommandTester($cmd);
 		$code = $tester->execute(['--force' => true]);
 		self::assertSame(0, $code);
@@ -87,9 +89,23 @@ final class RebuildBalancesCommandTest extends TestCase
 			},
 		);
 
-		$cmd = new RebuildBalancesCommand($db, $config, $movements, $balances);
+		$cmd = new RebuildBalancesCommand($db, $config, $movements, $balances, $this->scope(), $this->workspaces());
 		$tester = new CommandTester($cmd);
 		self::assertSame(0, $tester->execute([]));
+	}
+
+	private function scope(): \OCA\InventoryCheck\Service\WorkspaceContext
+	{
+		$scope = $this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class);
+		$scope->method('runAsSystem')->willReturnCallback(static fn (int $id, callable $run) => $run());
+		return $scope;
+	}
+
+	private function workspaces(): \OCA\InventoryCheck\Db\WorkspaceMapper
+	{
+		$mapper = $this->createMock(\OCA\InventoryCheck\Db\WorkspaceMapper::class);
+		$mapper->method('allIds')->willReturn([1]);
+		return $mapper;
 	}
 
 	private function makeBalance(int $itemId, int $locationId, int $qty): \OCA\InventoryCheck\Db\Balance

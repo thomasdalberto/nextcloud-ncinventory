@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace OCA\InventoryCheck\Middleware;
 
 use OCA\InventoryCheck\AppInfo\Application;
-use OCA\InventoryCheck\Exception\AppAccessDeniedException;
 use OCA\InventoryCheck\Exception\ConflictException;
 use OCA\InventoryCheck\Exception\InsufficientStockException;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Exception\PermissionDeniedException;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\QtyScale;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -25,7 +25,7 @@ use OCP\Files\LockNotAcquiredException;
 use OCP\Files\NotEnoughSpaceException;
 use OCP\Files\NotPermittedException as FilesNotPermittedException;
 use OCP\Files\StorageNotAvailableException;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -36,16 +36,15 @@ use Psr\Log\LoggerInterface;
 
 class AppAccessMiddleware extends Middleware
 {
-	private const HTTP_PAYMENT_REQUIRED = 402;
-
 	public function __construct(
 		private readonly IUserSession $userSession,
 		private readonly AccessControlService $accessControl,
 		private readonly IRequest $request,
 		private readonly IURLGenerator $urlGenerator,
 		private readonly IFactory $l10nFactory,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly LoggerInterface $logger,
+		private readonly WorkspaceContext $workspace,
 	) {
 	}
 
@@ -55,21 +54,16 @@ class AppAccessMiddleware extends Middleware
 		if (!str_starts_with($class, 'OCA\\InventoryCheck\\Controller\\')) {
 			return;
 		}
-		// Mobile API authenticates via session OR X-IV-Device-Token inside the
-		// controller; L2 canUseApp only applies to logged-in browser sessions.
-		if (str_contains($class, 'MobileController')) {
-			return;
+
+		// Public mobile routes authenticate their session or scanner token themselves.
+		if (str_contains($class, 'MobileController') || str_contains($class, 'AdministrationController')) { return; }
+		if ($this->userSession->getUser() === null) { return; }
+		if (!str_contains($class, 'WorkspaceController') && !str_contains($class, 'PageController')) {
+			$this->workspace->current();
+			if (!in_array($this->request->getMethod(), ['GET', 'HEAD', 'OPTIONS'], true)) {
+				$this->workspace->requireWrite();
+			}
 		}
-		$user = $this->userSession->getUser();
-		if ($user === null) {
-			return;
-		}
-		if ($this->accessControl->canUseApp($user->getUID())) {
-			return;
-		}
-		throw new AppAccessDeniedException(
-			$this->accessControl->denialReasonWhenCannotUseApp($user->getUID()),
-		);
 	}
 
 	public function afterException($controller, $methodName, \Exception $exception)
@@ -81,9 +75,6 @@ class AppAccessMiddleware extends Middleware
 
 		$l = $this->l10nFactory->get(Application::APP_ID);
 
-		if ($exception instanceof AppAccessDeniedException) {
-			return $this->accessDeniedResponse($exception, $l);
-		}
 		if ($exception instanceof PermissionDeniedException) {
 			return $this->envelope('permission_denied', $l->t('You do not have permission for this action.'), Http::STATUS_FORBIDDEN);
 		}
@@ -103,7 +94,7 @@ class AppAccessMiddleware extends Middleware
 			// (that is n()). Passing qty as %n previously rendered the default
 			// plural form (count=1) and shoved the qty into the location slot.
 			// Wave C1: show display qty (not milli storage ints).
-			$qty = (string)QtyScale::toDisplay($this->config, $exception->getAvailableQty());
+			$qty = (string)QtyScale::toDisplay($this->settings, $exception->getAvailableQty());
 			$msg = $exception->getLocationLabel() !== ''
 				? $l->t('Only %s left in %s.', [$qty, $exception->getLocationLabel()])
 				: $l->t('Not enough stock at this location (available: %s).', [$qty]);
@@ -131,48 +122,24 @@ class AppAccessMiddleware extends Middleware
 				],
 			], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
-		if ($exception instanceof MobileGateException) {
-			// AF-IV20: 402 license/seat/device envelopes are mobile-only.
-			// Web session controllers must never surface payment-required for
-			// MobileGateException — rethrow so it becomes a server error, not 402.
-			if (!str_contains($class, 'MobileController')) {
-				throw $exception;
-			}
-			// SPEC §9.1 rung 1 / AC-17: unauthenticated mobile callers are 401,
-			// never 402 (402 is reserved for license/seat/device entitlement misses).
-			if ($exception->getErrorCode() === 'auth_required') {
-				return $this->envelope(
-					'auth_required',
-					$l->t('Authentication required.'),
-					Http::STATUS_UNAUTHORIZED,
-				);
-			}
-			if ($exception->getErrorCode() === 'rate_limited') {
-				return $this->envelope(
-					'rate_limited',
-					$l->t('Too many pairing attempts. Try again later.'),
-					429,
-				);
-			}
-			if ($exception->getErrorCode() === 'idempotency_in_flight') {
-				return $this->envelope(
-					'idempotency_in_flight',
-					$l->t('This booking is already being processed. Retry shortly.'),
-					Http::STATUS_CONFLICT,
-				);
-			}
-			if ($exception->getErrorCode() === 'idempotency_payload_mismatch') {
-				return $this->envelope(
-					'idempotency_payload_mismatch',
-					$l->t('This booking id was already used with different details. Discard the row and book again.'),
-					Http::STATUS_CONFLICT,
-				);
-			}
-			return $this->envelope(
-				$exception->getErrorCode(),
-				$this->gateMessage($exception->getErrorCode(), $l),
-				self::HTTP_PAYMENT_REQUIRED,
-			);
+
+		if ($exception instanceof MobileRequestException) {
+			$code = $exception->getErrorCode();
+			$status = match ($code) {
+				'auth_required' => Http::STATUS_UNAUTHORIZED,
+				'rate_limited' => 429,
+				'idempotency_in_flight', 'idempotency_payload_mismatch' => Http::STATUS_CONFLICT,
+				default => Http::STATUS_FORBIDDEN,
+			};
+			$message = match ($code) {
+				'auth_required' => $l->t('Authentication required.'),
+				'device_required' => $l->t('This scanner is no longer paired or has been deactivated.'),
+				'rate_limited' => $l->t('Too many pairing attempts. Try again later.'),
+				'idempotency_in_flight' => $l->t('This booking is already being processed. Retry shortly.'),
+				'idempotency_payload_mismatch' => $l->t('This booking id was already used with different details. Discard the row and book again.'),
+				default => $l->t('You do not have permission for this action.'),
+			};
+			return $this->envelope($code, $message, $status);
 		}
 
 		// must_fix F1: OCP\Files storage/permission faults (e.g. an unwritable
@@ -257,45 +224,11 @@ class AppAccessMiddleware extends Middleware
 		return new JSONResponse(['error' => ['code' => $code, 'message' => $message, 'details' => []]], $status);
 	}
 
-	private function accessDeniedResponse(AppAccessDeniedException $exception, IL10N $l): JSONResponse|TemplateResponse
-	{
-		if ($this->isJsonRoute()) {
-			return $this->envelope(
-				'app_access_denied',
-				$l->t('You are not allowed to use InventoryCheck.'),
-				Http::STATUS_FORBIDDEN,
-			);
-		}
-
-		[$message, $hint] = match ($exception->getDenialReason()) {
-			AccessControlService::DENIAL_RESTRICTION => [
-				$l->t('Your organisation restricts InventoryCheck access. You are not on the allow-list.'),
-				$l->t('Ask a Nextcloud or InventoryCheck administrator to add you in Settings → Access.'),
-			],
-			default => [
-				$l->t('You are not allowed to use InventoryCheck right now.'),
-				$l->t('If you believe this is a mistake, contact your InventoryCheck administrator.'),
-			],
-		};
-		Util::addStyle(Application::APP_ID, 'app');
-		$response = new TemplateResponse(
-			Application::APP_ID,
-			'access-denied',
-			[
-				'message' => $message,
-				'hint' => $hint,
-				'homeUrl' => $this->urlGenerator->linkToDefaultPageUrl(),
-			],
-		);
-		$response->setStatus(Http::STATUS_FORBIDDEN);
-		$response->renderAs(TemplateResponse::RENDER_AS_USER);
-		return $response;
-	}
-
 	private function conflictMessage(string $code, IL10N $l): string
 	{
 		return match ($code) {
 			'insufficient_stock' => $l->t('Not enough stock at this location.'),
+			'workspace_member_exists' => $l->t('This user is already a member or has a pending invitation.'),
 			'code_exists' => $l->t('This code is already in use.'),
 			'item_has_stock' => $l->t('This item still has stock. Move or adjust it to zero before deactivating.'),
 			'track_mode_requires_zero_stock' => $l->t('Clear stock to zero before switching this item to lot or serial tracking.'),
@@ -304,9 +237,6 @@ class AppAccessMiddleware extends Middleware
 			'location_has_movements' => $l->t('This location has movement history and cannot be deleted. Deactivate it instead.'),
 			'item_in_open_stocktake' => $l->t('This item is on an open stocktake. Close or finish that stocktake first.'),
 			'location_in_open_stocktake' => $l->t('This location has an open stocktake. Close or finish that stocktake first.'),
-			'seat_limit_reached' => $l->t('All licensed seats are assigned. Remove a seat or upgrade the license.'),
-			'device_limit_reached' => $l->t('All licensed device slots are used. Remove a device or upgrade the license.'),
-			'license_busy' => $l->t('Another license change is in progress. Try again in a moment.'),
 			'campaign_not_open' => $l->t('This cycle count has already been started or closed.'),
 			'campaign_not_counting' => $l->t('This cycle count is not open for counting right now.'),
 			'line_already_posted' => $l->t('This line was already posted and cannot be counted again.'),
@@ -325,11 +255,9 @@ class AppAccessMiddleware extends Middleware
 			'inactive_location' => $l->t('This location is deactivated.'),
 			'invalid_code_format' => $l->t('The code format is not valid. Use letters, digits, and . _ / - only.'),
 			'invalid_query' => $l->t('The list parameters are not valid.'),
-			'license_invalid' => $l->t('This license key is not valid: %s', [$exception->getMessage()]),
 			'unknown_user' => $l->t('This Nextcloud user does not exist.'),
 			'unknown_group' => $l->t('This Nextcloud group does not exist.'),
 			'unknown_device' => $l->t('This scanner device slot does not exist.'),
-			'access_allowlist_required' => $l->t('Turn on access restriction only after choosing at least one allowed user or group.'),
 			'invalid_pair_code' => $l->t('This pairing code is invalid or expired.'),
 			'photo_too_large' => $l->t('The photo is too large. Maximum size is 2 MB.'),
 			'photo_type_invalid' => $l->t('Only JPEG, PNG, or WebP photos are allowed.'),
@@ -344,16 +272,4 @@ class AppAccessMiddleware extends Middleware
 		};
 	}
 
-	private function gateMessage(string $code, IL10N $l): string
-	{
-		return match ($code) {
-			'auth_required' => $l->t('Authentication required.'),
-			'license_missing' => $l->t('No mobile license is stored on this server.'),
-			'license_expired' => $l->t('The mobile license has expired.'),
-			'seat_required' => $l->t('You do not have a mobile seat assigned.'),
-			'device_required' => $l->t('This device is not paired or was deactivated.'),
-			'device_limit_exceeded' => $l->t('This device is above the licensed device limit.'),
-			default => $l->t('Your mobile seat is above the licensed limit.'),
-		};
-	}
 }

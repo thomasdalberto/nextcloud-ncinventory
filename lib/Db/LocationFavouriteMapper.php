@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<LocationFavourite>
+ * @extends WorkspaceScopedMapper<LocationFavourite>
  */
-class LocationFavouriteMapper extends QBMapper
+class LocationFavouriteMapper extends WorkspaceScopedMapper
 {
 	public const TABLE = 'iv_loc_fav';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, LocationFavourite::class);
+		parent::__construct($db, self::TABLE, LocationFavourite::class, $workspace);
 	}
 
 	/** @return list<int> */
@@ -28,6 +28,7 @@ class LocationFavouriteMapper extends QBMapper
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
 			->orderBy('created_at', 'ASC')
 			->addOrderBy('id', 'ASC');
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$out = [];
 		while (($row = $res->fetch()) !== false) {
@@ -42,6 +43,7 @@ class LocationFavouriteMapper extends QBMapper
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('id', 'cnt'))->from($this->getTableName())
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$total = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();
@@ -64,6 +66,7 @@ class LocationFavouriteMapper extends QBMapper
 		$qb->delete($this->getTableName())
 			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
 			->andWhere($qb->expr()->eq('location_id', $qb->createNamedParameter($locationId, IQueryBuilder::PARAM_INT)));
+		$this->workspace->apply($qb);
 		$qb->executeStatement();
 	}
 
@@ -82,6 +85,7 @@ class LocationFavouriteMapper extends QBMapper
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete($this->getTableName())
 			->where($qb->expr()->eq('location_id', $qb->createNamedParameter($locationId, IQueryBuilder::PARAM_INT)));
+		$this->workspace->apply($qb);
 		$qb->executeStatement();
 	}
 

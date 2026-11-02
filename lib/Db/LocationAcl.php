@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method string getSubjectType()
@@ -14,7 +13,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int getLocationId()
  * @method void setLocationId(int $v)
  */
-class LocationAcl extends Entity
+class LocationAcl extends WorkspaceEntity
 {
 	protected string $subjectType = '';
 	protected string $subjectId = '';
@@ -22,6 +21,7 @@ class LocationAcl extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('subjectType', 'string');
 		$this->addType('subjectId', 'string');
 		$this->addType('locationId', 'integer');

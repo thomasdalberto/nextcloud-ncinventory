@@ -66,7 +66,7 @@ final class StocktakeCreatePageContractTest extends TestCase
 	public function testClientGatesOfficeAndValidatesLocationId(): void
 	{
 		self::assertStringContainsString('Office access required', $this->js);
-		self::assertStringContainsString('!(ctx.isOffice || ctx.isAppAdmin)', $this->js);
+		self::assertStringContainsString('!ctx.canWrite', $this->js);
 		self::assertStringContainsString('if (!locId || locId < 1 || locId !== Math.floor(locId))', $this->js);
 		self::assertStringContainsString('Arm busy before the async create path', $this->js);
 		self::assertStringContainsString('setBusy(true);', $this->js);

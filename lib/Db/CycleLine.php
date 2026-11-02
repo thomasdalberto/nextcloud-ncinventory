@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method int getCampaignId()
@@ -20,7 +19,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int getUpdatedAt()
  * @method void setUpdatedAt(int $v)
  */
-class CycleLine extends Entity
+class CycleLine extends WorkspaceEntity
 {
 	protected int $campaignId = 0;
 	protected int $itemId = 0;
@@ -32,6 +31,7 @@ class CycleLine extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('campaignId', 'integer');
 		$this->addType('itemId', 'integer');
 		$this->addType('systemQty', 'integer');

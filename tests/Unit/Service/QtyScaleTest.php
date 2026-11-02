@@ -7,17 +7,17 @@ namespace OCA\InventoryCheck\Tests\Unit\Service;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\QtyScale;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use PHPUnit\Framework\TestCase;
 
 final class QtyScaleTest extends TestCase
 {
-	private function config(string $scale = '0'): IConfig
+	private function config(string $scale = '0'): WorkspaceSettings
 	{
-		$config = $this->createMock(IConfig::class);
-		$config->method('getAppValue')->willReturnCallback(
-			static function (string $app, string $key, string $default = '') use ($scale): string {
-				if ($app === Application::APP_ID && $key === QtyScale::KEY) {
+		$config = $this->createMock(WorkspaceSettings::class);
+		$config->method('get')->willReturnCallback(
+			static function (string $key, string $default = '') use ($scale): string {
+				if ($key === QtyScale::KEY) {
 					return $scale;
 				}
 				return $default;

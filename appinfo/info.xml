@@ -316,7 +316,7 @@ Vi forbedrer denne appen med bruk i praksis. Feilrapporter, friksjon og idéer h
 	<screenshot small-thumbnail="https://raw.githubusercontent.com/aSoftwareByDesignRepository/nextcloud-inventorycheck/refs/heads/main/screenshots/inventorycheck-screenshot-04.png">https://raw.githubusercontent.com/aSoftwareByDesignRepository/nextcloud-inventorycheck/refs/heads/main/screenshots/inventorycheck-screenshot-04.png</screenshot>
 	<screenshot small-thumbnail="https://raw.githubusercontent.com/aSoftwareByDesignRepository/nextcloud-inventorycheck/refs/heads/main/screenshots/inventorycheck-screenshot-05.png">https://raw.githubusercontent.com/aSoftwareByDesignRepository/nextcloud-inventorycheck/refs/heads/main/screenshots/inventorycheck-screenshot-05.png</screenshot>
 	<screenshot small-thumbnail="https://raw.githubusercontent.com/aSoftwareByDesignRepository/nextcloud-inventorycheck/refs/heads/main/screenshots/inventorycheck-screenshot-06.png">https://raw.githubusercontent.com/aSoftwareByDesignRepository/nextcloud-inventorycheck/refs/heads/main/screenshots/inventorycheck-screenshot-06.png</screenshot>
-	<version>1.5.0</version>
+	<version>1.7.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author mail="info@software-by-design.de" homepage="https://nextcloud.software-by-design.de">Software by Design GbR</author>
 	<namespace>InventoryCheck</namespace>
@@ -347,6 +347,12 @@ Vi forbedrer denne appen med bruk i praksis. Feilrapporter, friksjon og idéer h
 		<command>OCA\InventoryCheck\Command\UpgradeBackupCommand</command>
 	</commands>
 	<activity>
+		<settings>
+			<setting>OCA\InventoryCheck\Activity\WorkspaceSetting</setting>
+		</settings>
+		<filters>
+			<filter>OCA\InventoryCheck\Activity\Filter</filter>
+		</filters>
 		<providers>
 			<provider>OCA\InventoryCheck\Activity\Provider</provider>
 		</providers>
@@ -369,4 +375,13 @@ Vi forbedrer denne appen med bruk i praksis. Feilrapporter, friksjon og idéer h
 			<step>OCA\InventoryCheck\Repair\UninstallDropTables</step>
 		</uninstall>
 	</repair-steps>
+
+	<navigations>
+		<navigation>
+			<name>InventoryCheck</name>
+			<route>inventorycheck.page.workspaces</route>
+			<icon>app.svg</icon>
+			<order>20</order>
+		</navigation>
+	</navigations>
 </info>

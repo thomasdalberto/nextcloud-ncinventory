@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/harness.php';
 
-$file = 'lib/Service/LicenseService.php';
+$file = 'lib/Service/ScannerService.php';
 
 runMutations(dirname(__DIR__, 2), 'HashSecretPepperTest', [
 	[

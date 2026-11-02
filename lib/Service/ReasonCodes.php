@@ -6,7 +6,7 @@ namespace OCA\InventoryCheck\Service;
 
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Exception\ValidationException;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 
 /**
  * Wave D3: fixed adjust reason taxonomy (DE/EN labels).
@@ -31,18 +31,18 @@ final class ReasonCodes
 	 * Default ON for new installs (ensurer seeds '1').
 	 * Missing key → off (upgrade-safe until admin/ensurer sets it).
 	 */
-	public static function isRequired(IConfig $config): bool
+	public static function isRequired(WorkspaceSettings $settings): bool
 	{
-		$v = $config->getAppValue(Application::APP_ID, self::KEY_REQUIRE_ADJUST_REASON, '');
+		$v = $settings->get(self::KEY_REQUIRE_ADJUST_REASON, '1');
 		if ($v === '') {
 			return false;
 		}
 		return $v === '1';
 	}
 
-	public static function setRequired(IConfig $config, bool $required): void
+	public static function setRequired(WorkspaceSettings $settings, bool $required): void
 	{
-		$config->setAppValue(Application::APP_ID, self::KEY_REQUIRE_ADJUST_REASON, $required ? '1' : '0');
+		$settings->set(self::KEY_REQUIRE_ADJUST_REASON, $required ? '1' : '0');
 	}
 
 	public static function isValid(?string $code): bool
@@ -78,10 +78,10 @@ final class ReasonCodes
 	 *
 	 * @throws ValidationException
 	 */
-	public static function requireForAdjust(IConfig $config, ?string $code): ?string
+	public static function requireForAdjust(WorkspaceSettings $settings, ?string $code): ?string
 	{
 		$normalized = self::normalize($code);
-		if (self::isRequired($config) && $normalized === null) {
+		if (self::isRequired($settings) && $normalized === null) {
 			throw new ValidationException('validation_failed', '', [
 				['field' => 'reasonCode', 'code' => 'reason_code_required'],
 			]);

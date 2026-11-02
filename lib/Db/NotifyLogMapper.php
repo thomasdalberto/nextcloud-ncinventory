@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<NotifyLog>
+ * @extends WorkspaceScopedMapper<NotifyLog>
  */
-class NotifyLogMapper extends QBMapper
+class NotifyLogMapper extends WorkspaceScopedMapper
 {
 	public const TABLE = 'iv_notif_log';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, NotifyLog::class);
+		parent::__construct($db, self::TABLE, NotifyLog::class, $workspace);
 	}
 
 	public function findRecentForItem(int $itemId, int $sinceUnix): ?NotifyLog
@@ -53,8 +53,9 @@ class NotifyLogMapper extends QBMapper
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete($this->getTableName())
-			->where($qb->expr()->eq('dedupe_key', $qb->createNamedParameter($dedupeKey)))
-			->executeStatement();
+			->where($qb->expr()->eq('dedupe_key', $qb->createNamedParameter($dedupeKey)));
+		$this->workspace->apply($qb);
+		$qb->executeStatement();
 	}
 
 	public function findByDedupeKey(string $dedupeKey): ?NotifyLog

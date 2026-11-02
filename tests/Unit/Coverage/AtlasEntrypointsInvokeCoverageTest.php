@@ -48,7 +48,8 @@ final class AtlasEntrypointsInvokeCoverageTest extends TestCase
 		$l10n->method('t')->willReturnCallback(static fn (string $s, array $p = []) => $s);
 		$factory = $this->createMock(\OCP\L10N\IFactory::class);
 		$factory->method('get')->willReturn($l10n);
-		$notifier = new Notifier($factory, $this->createMock(\OCP\IURLGenerator::class));
+		$notifier = new Notifier($factory, $this->createMock(\OCP\IURLGenerator::class), $this->createMock(\OCA\InventoryCheck\Db\WorkspaceMapper::class),
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceInvitationLinks::class));
 		self::assertIsString($notifier->getID());
 		$invoked[] = 'Notifier::getID';
 		self::assertIsString($notifier->getName());

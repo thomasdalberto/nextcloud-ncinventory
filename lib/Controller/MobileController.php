@@ -6,31 +6,31 @@ namespace OCA\InventoryCheck\Controller;
 
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Db\ScanDevice;
-use OCA\InventoryCheck\Exception\AppAccessDeniedException;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\BalanceService;
 use OCA\InventoryCheck\Service\CycleCountService;
 use OCA\InventoryCheck\Service\DevicePairingService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationService;
 use OCA\InventoryCheck\Service\Lookup\LookupException;
-use OCA\InventoryCheck\Service\MobileGateService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementService;
-use OCA\InventoryCheck\Service\ProductLookupService;
-use OCA\InventoryCheck\Service\ScanIdempotencyService;
 use OCA\InventoryCheck\Service\Pagination;
+use OCA\InventoryCheck\Service\ProductLookupService;
 use OCA\InventoryCheck\Service\QtyScale;
+use OCA\InventoryCheck\Service\ScanIdempotencyService;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\ISession;
@@ -41,7 +41,7 @@ use OCP\IUserSession;
  *
  * Device callers authenticate with X-IV-Device-Token only (no NC session),
  * so every route is PublicPage + NoCSRFRequired. Auth is enforced inside
- * resolveCaller / MobileGateService — never by SecurityMiddleware session.
+ * resolveCaller / MobileAccessService — never by SecurityMiddleware session.
  *
  * Session-backed mutating routes still call {@see assertSafeMutationChannel}
  * so a bare cookie cannot drive scan/favourites/inventur without CSRF or a
@@ -52,8 +52,8 @@ class MobileController extends Controller
 {
 	public function __construct(
 		IRequest $request,
-		private readonly MobileGateService $gate,
-		private readonly LicenseService $license,
+		private readonly MobileAccessService $gate,
+		private readonly ScannerService $scanners,
 		private readonly DevicePairingService $pairing,
 		private readonly ItemService $items,
 		private readonly LocationService $locations,
@@ -67,8 +67,9 @@ class MobileController extends Controller
 		private readonly ProductLookupService $productLookup,
 		private readonly IUserSession $userSession,
 		private readonly ISession $session,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly IL10N $l10n,
+		private readonly WorkspaceContext $workspace,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -95,12 +96,10 @@ class MobileController extends Controller
 	{
 		// SPEC §9.1: bootstrap skips rungs 3–6 only — auth + canUseApp still apply.
 		[$uid, $device] = $this->resolveCaller(true);
-		if ($uid !== null && !$this->access->canUseApp($uid)) {
-			throw new AppAccessDeniedException(
-				$this->access->denialReasonWhenCannotUseApp($uid),
-			);
-		}
-		return new JSONResponse($this->gate->bootstrap($uid, $device));
+		$result = $this->gate->bootstrap($uid, $device);
+		$result['workspaceId'] = $this->workspace->id();
+		$result['capabilities']['workspaces'] = true;
+		return new JSONResponse($result);
 	}
 
 	#[PublicPage]
@@ -109,14 +108,14 @@ class MobileController extends Controller
 	public function byCode(string $code): JSONResponse
 	{
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		$item = QtyScale::formatItem(
 			$this->items->byCode($this->actorUid($uid, $device), rawurldecode($code)),
-			$this->config,
+			$this->settings,
 		);
 		if (isset($item['balances']) && is_array($item['balances'])) {
 			$item['balances'] = array_map(
-				fn (array $b) => QtyScale::formatBalance($b, $this->config),
+				fn (array $b) => QtyScale::formatBalance($b, $this->settings),
 				$item['balances'],
 			);
 		}
@@ -132,7 +131,7 @@ class MobileController extends Controller
 	public function itemPhoto(int $id): DataDisplayResponse
 	{
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		// Release the PHP session lock before streaming — auth already ran.
 		$this->session->close();
 		$photo = $this->photos->read($id);
@@ -148,7 +147,7 @@ class MobileController extends Controller
 	public function locationByCode(string $code): JSONResponse
 	{
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		return new JSONResponse(
 			$this->locations->byCode($this->actorUid($uid, $device), rawurldecode($code)),
 		);
@@ -160,7 +159,7 @@ class MobileController extends Controller
 	public function locations(): JSONResponse
 	{
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		$page = Pagination::parse($this->request->getParam('limit'), $this->request->getParam('offset'));
 		return new JSONResponse($this->locations->list($this->actorUid($uid, $device), true, $page['limit'], $page['offset']));
 	}
@@ -171,7 +170,7 @@ class MobileController extends Controller
 	public function balances(): JSONResponse
 	{
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		$page = Pagination::parse($this->request->getParam('limit'), $this->request->getParam('offset'));
 		$itemId = $this->request->getParam('itemId');
 		$locationId = $this->request->getParam('locationId');
@@ -184,7 +183,7 @@ class MobileController extends Controller
 			$page['offset'],
 		);
 		$result['data'] = array_map(
-			fn (array $b) => QtyScale::formatBalance($b, $this->config),
+			fn (array $b) => QtyScale::formatBalance($b, $this->settings),
 			$result['data'],
 		);
 		return new JSONResponse($result);
@@ -196,14 +195,14 @@ class MobileController extends Controller
 	public function movements(): JSONResponse
 	{
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		$page = Pagination::parse($this->request->getParam('limit'), $this->request->getParam('offset'));
 		$result = $this->movements->list(
 			$this->actorUid($uid, $device),
 			null, null, null, null, null, null, $page['limit'], $page['offset'],
 		);
 		$result['data'] = array_map(
-			fn (array $m) => QtyScale::formatMovement($m, $this->config),
+			fn (array $m) => QtyScale::formatMovement($m, $this->settings),
 			$result['data'],
 		);
 		return new JSONResponse($result);
@@ -216,9 +215,9 @@ class MobileController extends Controller
 	{
 		$this->assertSafeMutationChannel();
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		$p = $this->request->getParams();
-		$asOffice = $device === null && $uid !== null && $this->access->isOffice($uid);
+		$asOffice = $device === null && $uid !== null && $this->access->canWrite($uid);
 		$actor = $this->actorUid($uid, $device);
 		$clientRequestId = $this->scanIdempotency->normalizeClientRequestId(
 			$p['clientRequestId'] ?? ($p['client_request_id'] ?? null),
@@ -228,20 +227,20 @@ class MobileController extends Controller
 			$prior = $this->scanIdempotency->lookup($actor, $clientRequestId);
 			if ($prior['status'] === ScanIdempotencyService::STATUS_DONE && is_array($prior['response'])) {
 				if (!$this->scanIdempotency->payloadMatches($prior['payloadHash'], $payloadHash)) {
-					throw new MobileGateException('idempotency_payload_mismatch');
+					throw new MobileRequestException('idempotency_payload_mismatch');
 				}
 				return new JSONResponse($prior['response']);
 			}
 			if ($prior['status'] === ScanIdempotencyService::STATUS_PENDING) {
 				if (!$this->scanIdempotency->releaseStalePending($actor, $clientRequestId)) {
-					throw new MobileGateException('idempotency_in_flight');
+					throw new MobileRequestException('idempotency_in_flight');
 				}
 			}
 			if (!$this->scanIdempotency->tryClaim($actor, $clientRequestId, $payloadHash)) {
 				$again = $this->scanIdempotency->lookup($actor, $clientRequestId);
 				if ($again['status'] === ScanIdempotencyService::STATUS_DONE && is_array($again['response'])) {
 					if (!$this->scanIdempotency->payloadMatches($again['payloadHash'], $payloadHash)) {
-						throw new MobileGateException('idempotency_payload_mismatch');
+						throw new MobileRequestException('idempotency_payload_mismatch');
 					}
 					return new JSONResponse($again['response']);
 				}
@@ -250,7 +249,7 @@ class MobileController extends Controller
 					&& $this->scanIdempotency->tryClaim($actor, $clientRequestId, $payloadHash)) {
 					// Reclaimed stale twin — proceed with scan.
 				} else {
-					throw new MobileGateException('idempotency_in_flight');
+					throw new MobileRequestException('idempotency_in_flight');
 				}
 			}
 		}
@@ -265,8 +264,8 @@ class MobileController extends Controller
 				(string)($p['kind'] ?? ''),
 				(int)($p['locationId'] ?? 0),
 				isset($p['toLocationId']) ? (int)$p['toLocationId'] : null,
-				isset($p['qty']) ? QtyScale::toStorage($this->config, $p['qty']) : null,
-				isset($p['qtyDelta']) ? QtyScale::toStorage($this->config, $p['qtyDelta']) : null,
+				isset($p['qty']) ? QtyScale::toStorage($this->settings, $p['qty']) : null,
+				isset($p['qtyDelta']) ? QtyScale::toStorage($this->settings, $p['qtyDelta']) : null,
 				isset($p['reason']) ? (string)$p['reason'] : null,
 				$asOffice,
 				$lotCode,
@@ -287,11 +286,11 @@ class MobileController extends Controller
 		$formatted = $result;
 		try {
 			$formatted['movements'] = array_map(
-				fn (array $m) => QtyScale::formatMovement($m, $this->config),
+				fn (array $m) => QtyScale::formatMovement($m, $this->settings),
 				$result['movements'],
 			);
 			$formatted['balances'] = array_map(
-				fn (array $b) => QtyScale::formatBalance($b, $this->config),
+				fn (array $b) => QtyScale::formatBalance($b, $this->settings),
 				$result['balances'],
 			);
 		} catch (\Throwable $e) {
@@ -322,7 +321,7 @@ class MobileController extends Controller
 	public function favourites(): JSONResponse
 	{
 		[$uid] = $this->requireSessionUser();
-		$this->gate->assertGate($uid, null);
+		$this->gate->requireCaller($uid, null);
 		return new JSONResponse(['data' => $this->favourites->list($uid)]);
 	}
 
@@ -333,7 +332,7 @@ class MobileController extends Controller
 	{
 		$this->assertSafeMutationChannel();
 		[$uid] = $this->requireSessionUser();
-		$this->gate->assertGate($uid, null);
+		$this->gate->requireCaller($uid, null);
 		$locationId = (int)$this->request->getParam('locationId', 0);
 		return new JSONResponse(['data' => $this->favourites->add($uid, $locationId)]);
 	}
@@ -345,7 +344,7 @@ class MobileController extends Controller
 	{
 		$this->assertSafeMutationChannel();
 		[$uid] = $this->requireSessionUser();
-		$this->gate->assertGate($uid, null);
+		$this->gate->requireCaller($uid, null);
 		return new JSONResponse(['data' => $this->favourites->remove($uid, $locationId)]);
 	}
 
@@ -356,7 +355,7 @@ class MobileController extends Controller
 	public function cycleCounts(): JSONResponse
 	{
 		[$uid] = $this->requireSessionUser();
-		$this->gate->assertGate($uid, null);
+		$this->gate->requireCaller($uid, null);
 		$page = Pagination::parse($this->request->getParam('limit'), $this->request->getParam('offset'));
 		$status = (string)$this->request->getParam('status', '');
 		return new JSONResponse($this->cycles->list(
@@ -373,7 +372,7 @@ class MobileController extends Controller
 	public function cycleCountShow(int $id): JSONResponse
 	{
 		[$uid] = $this->requireSessionUser();
-		$this->gate->assertGate($uid, null);
+		$this->gate->requireCaller($uid, null);
 		$blind = filter_var($this->request->getParam('blind', '0'), FILTER_VALIDATE_BOOLEAN);
 		$page = Pagination::parse($this->request->getParam('limit'), $this->request->getParam('offset'));
 		$campaign = $this->formatCycleCampaign(
@@ -390,15 +389,15 @@ class MobileController extends Controller
 	{
 		$this->assertSafeMutationChannel();
 		[$uid] = $this->requireSessionUser();
-		$this->gate->assertGate($uid, null);
+		$this->gate->requireCaller($uid, null);
 		$p = $this->request->getParams();
 		$blind = filter_var($p['blind'] ?? $this->request->getParam('blind', '0'), FILTER_VALIDATE_BOOLEAN);
 		$line = $this->cycles->setCount(
 			$uid,
 			$lineId,
-			QtyScale::toStorage($this->config, $p['qtyCounted'] ?? 0),
+			QtyScale::toStorage($this->settings, $p['qtyCounted'] ?? 0),
 		);
-		$formatted = QtyScale::formatCycleLine($line, $this->config);
+		$formatted = QtyScale::formatCycleLine($line, $this->settings);
 		if ($blind) {
 			// AF-IV13: mutation responses must not leak book qty either.
 			unset($formatted['systemQty'], $formatted['currentQty'], $formatted['conflict']);
@@ -419,7 +418,7 @@ class MobileController extends Controller
 	{
 		$this->assertSafeMutationChannel();
 		[$uid, $device] = $this->resolveCaller(true);
-		$this->gate->assertGate($uid, $device);
+		$this->gate->requireCaller($uid, $device);
 		$barcode = $this->request->getParam('barcode', '');
 		try {
 			if (!is_string($barcode)) {
@@ -456,7 +455,7 @@ class MobileController extends Controller
 		if ($this->request->passesCSRFCheck()) {
 			return;
 		}
-		throw new MobileGateException('auth_required');
+		throw new MobileRequestException('auth_required');
 	}
 
 	/**
@@ -467,7 +466,7 @@ class MobileController extends Controller
 		[$uid, $device] = $this->resolveCaller(true);
 		if ($device !== null || $uid === null) {
 			// Device tokens are field-only; inventur/favourites need a named seat.
-			throw new MobileGateException('auth_required');
+			throw new MobileRequestException('auth_required');
 		}
 		return [$uid, null];
 	}
@@ -481,7 +480,7 @@ class MobileController extends Controller
 		if (isset($campaign['lines']) && is_array($campaign['lines'])) {
 			$campaign['lines'] = array_map(
 				function (array $line) use ($blind): array {
-					$formatted = QtyScale::formatCycleLine($line, $this->config);
+					$formatted = QtyScale::formatCycleLine($line, $this->settings);
 					if ($blind) {
 						// AF-IV13: never leak system/current qty OR conflict side-channels.
 						unset(
@@ -510,25 +509,30 @@ class MobileController extends Controller
 	{
 		$token = (string)$this->request->getHeader('X-IV-Device-Token');
 		if ($token !== '') {
-			$hash = $this->license->hashSecret($token);
-			$device = $this->license->findDeviceByTokenHash($hash);
+			$hash = $this->scanners->hashSecret($token);
+			$device = $this->scanners->findDeviceByTokenHash($hash);
 			// SPEC §9.1: unknown / garbage token → 401 auth (rung 1).
 			// Deactivated slot that still holds this hash → 402 device_required (rung 5 / §9.3.4).
 			if ($device === null) {
-				throw new MobileGateException('auth_required');
+				throw new MobileRequestException('auth_required');
 			}
 			if (!$device->getActive()) {
-				throw new MobileGateException('device_required');
+				throw new MobileRequestException('device_required');
 			}
+			$this->workspace->forDevice($device->getWorkspaceId());
 			$this->pairing->touchLastSeen($device);
 			return [null, $device];
 		}
 		$user = $this->userSession->getUser();
 		if ($user === null) {
 			if ($requireAuth) {
-				throw new MobileGateException('auth_required');
+				throw new MobileRequestException('auth_required');
 			}
 			return [null, null];
+		}
+		$this->workspace->current();
+		if (!in_array($this->request->getMethod(), ['GET', 'HEAD', 'OPTIONS'], true)) {
+			$this->workspace->requireWrite();
 		}
 		return [$user->getUID(), null];
 	}

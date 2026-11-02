@@ -90,7 +90,7 @@ class LocationService
 	 */
 	public function create(string $actorUid, array $input): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$code = CodeRules::trim((string)($input['code'] ?? ''));
 		$name = CodeRules::trim((string)($input['name'] ?? ''));
 		$kind = CodeRules::trim((string)($input['kind'] ?? 'other'));
@@ -135,7 +135,7 @@ class LocationService
 	 */
 	public function update(string $actorUid, int $id, array $input): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$touchesCode = array_key_exists('code', $input);
 		$run = fn (): array => $this->updateLocked($id, $input);
 		return $touchesCode ? $this->withCodesLock($run) : $run();
@@ -210,7 +210,7 @@ class LocationService
 
 	public function delete(string $actorUid, int $id): void
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->db->beginTransaction();
 		try {
 			// Exclusive lock conflicts with the shared lock held by any

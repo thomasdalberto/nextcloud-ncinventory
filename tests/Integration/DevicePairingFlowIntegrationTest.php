@@ -7,7 +7,7 @@ namespace OCA\InventoryCheck\Tests\Integration;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\DevicePairingService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Tests\Support\Iv2TestSigning;
 use Test\TestCase;
 
@@ -18,7 +18,7 @@ use Test\TestCase;
  */
 final class DevicePairingFlowIntegrationTest extends TestCase
 {
-	private LicenseService $license;
+	private ScannerService $license;
 	private DevicePairingService $pairing;
 	/** @var string|false */
 	private $prevEnv;
@@ -30,7 +30,7 @@ final class DevicePairingFlowIntegrationTest extends TestCase
 		putenv('IV_VENDOR_PUBLIC_KEY_B64=' . Iv2TestSigning::publicKeyB64());
 		$app = new Application();
 		$c = $app->getContainer();
-		$this->license = $c->get(LicenseService::class);
+		$this->license = $c->get(ScannerService::class);
 		$this->pairing = $c->get(DevicePairingService::class);
 
 		$this->license->apply('admin', Iv2TestSigning::signPayload([

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method string getSku()
@@ -42,7 +41,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int|null getDefaultLocationId()
  * @method void setDefaultLocationId(?int $v)
  */
-class Item extends Entity
+class Item extends WorkspaceEntity
 {
 	protected string $sku = '';
 	protected string $scanCode = '';
@@ -67,6 +66,7 @@ class Item extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('sku', 'string');
 		$this->addType('scanCode', 'string');
 		$this->addType('name', 'string');

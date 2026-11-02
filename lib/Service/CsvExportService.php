@@ -11,7 +11,7 @@ use OCA\InventoryCheck\Db\MovementMapper;
 use OCA\InventoryCheck\Exception\PermissionDeniedException;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Util\Csv;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 
 /**
  * CSV export for items, locations, balances, movements (Wave A1 / B5).
@@ -27,7 +27,7 @@ class CsvExportService
 		private readonly BalanceMapper $balances,
 		private readonly MovementMapper $movements,
 		private readonly AccessControlService $access,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 	}
 
@@ -62,7 +62,7 @@ class CsvExportService
 	/** Wave D5 — office+ */
 	private function exportReorder(string $actorUid, string $lang): array
 	{
-		if (!$this->access->isOffice($actorUid)) {
+		if (!$this->access->canWrite($actorUid)) {
 			throw new PermissionDeniedException();
 		}
 		$sums = $this->balances->sumQtyByItem(null);
@@ -74,14 +74,14 @@ class CsvExportService
 				continue;
 			}
 			$suggested = SuggestedOrder::qty($total, $item->getReorderLevel(), $item->getTargetStock());
-			$api = QtyScale::formatItem($item->toApi(), $this->config);
+			$api = QtyScale::formatItem($item->toApi(), $this->settings);
 			$rows[] = [
 				$api['sku'],
 				$api['name'],
-				QtyScale::toDisplay($this->config, $total),
+				QtyScale::toDisplay($this->settings, $total),
 				$api['reorderLevel'],
 				$api['targetStock'] ?? '',
-				QtyScale::toDisplay($this->config, $suggested),
+				QtyScale::toDisplay($this->settings, $suggested),
 				$api['supplierNote'] ?? '',
 				$api['uom'],
 			];
@@ -108,7 +108,7 @@ class CsvExportService
 		string $lang,
 		?string $reasonCode = null,
 	): array {
-		if (!$this->access->isOffice($actorUid)) {
+		if (!$this->access->canWrite($actorUid)) {
 			throw new PermissionDeniedException();
 		}
 		$result = $this->movements->search(
@@ -130,7 +130,7 @@ class CsvExportService
 		);
 		$body = Csv::line($headers);
 		foreach ($result['data'] as $mov) {
-			$api = QtyScale::formatMovement($mov->toApi(), $this->config);
+			$api = QtyScale::formatMovement($mov->toApi(), $this->settings);
 			$body .= Csv::line([
 				$api['id'],
 				$api['itemId'],
@@ -157,7 +157,7 @@ class CsvExportService
 		);
 		$body = Csv::line($headers);
 		foreach ($result['data'] as $item) {
-			$api = QtyScale::formatItem($item->toApi(), $this->config);
+			$api = QtyScale::formatItem($item->toApi(), $this->settings);
 			$body .= Csv::line([
 				$api['sku'],
 				$api['scanCode'],
@@ -201,7 +201,7 @@ class CsvExportService
 		$headers = Csv::localizeHeaders(['item_id', 'location_id', 'qty', 'updated_at'], $lang);
 		$body = Csv::line($headers);
 		foreach ($result['data'] as $bal) {
-			$api = QtyScale::formatBalance($bal->toApi(), $this->config);
+			$api = QtyScale::formatBalance($bal->toApi(), $this->settings);
 			$body .= Csv::line([
 				$api['itemId'],
 				$api['locationId'],
@@ -224,7 +224,7 @@ class CsvExportService
 		bool $datevStyle,
 		string $lang,
 	): array {
-		if (!$this->access->isOffice($actorUid)) {
+		if (!$this->access->canWrite($actorUid)) {
 			throw new PermissionDeniedException();
 		}
 		$result = $this->movements->search(null, $itemId, $locationId, $from, $to, null, Csv::MAX_EXPORT_ROWS, 0);
@@ -236,7 +236,7 @@ class CsvExportService
 			);
 			$body = Csv::line($headers);
 			foreach ($result['data'] as $mov) {
-				$api = QtyScale::formatMovement($mov->toApi(), $this->config);
+				$api = QtyScale::formatMovement($mov->toApi(), $this->settings);
 				$body .= Csv::line([
 					$api['id'],
 					$api['itemId'],
@@ -255,7 +255,7 @@ class CsvExportService
 		);
 		$body = Csv::line($headers);
 		foreach ($result['data'] as $mov) {
-			$api = QtyScale::formatMovement($mov->toApi(), $this->config);
+			$api = QtyScale::formatMovement($mov->toApi(), $this->settings);
 			$body .= Csv::line([
 				$api['id'],
 				$api['itemId'],

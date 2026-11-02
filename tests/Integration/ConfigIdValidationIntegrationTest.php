@@ -215,7 +215,7 @@ final class ConfigIdValidationIntegrationTest extends TestCase
 		$this->assertSame(200, $response->getStatus());
 		$acl = Server::get(AccessControlService::class);
 		$this->assertSame([self::MEMBER], $acl->getJsonIdList(AccessControlService::KEY_APP_ADMINS));
-		$this->assertTrue($acl->isAppAdmin(self::MEMBER));
+		$this->assertTrue($acl->isWorkspaceAdmin(self::MEMBER));
 	}
 
 	public function testPartialPayloadDoesNotWriteWhenSecondListInvalid(): void

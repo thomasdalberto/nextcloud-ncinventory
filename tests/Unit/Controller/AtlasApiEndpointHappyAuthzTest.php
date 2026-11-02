@@ -14,7 +14,8 @@ use OCA\InventoryCheck\Controller\FlangeController;
 use OCA\InventoryCheck\Controller\ImportController;
 use OCA\InventoryCheck\Controller\ItemController;
 use OCA\InventoryCheck\Controller\ItemPhotoController;
-use OCA\InventoryCheck\Controller\LicenseController;
+use OCA\InventoryCheck\Controller\ScannerController;
+use OCA\InventoryCheck\Controller\AdministrationController;
 use OCA\InventoryCheck\Controller\LocationController;
 use OCA\InventoryCheck\Controller\LowStockController;
 use OCA\InventoryCheck\Controller\MobileController;
@@ -22,7 +23,7 @@ use OCA\InventoryCheck\Controller\MovementController;
 use OCA\InventoryCheck\Controller\PageController;
 use OCA\InventoryCheck\Controller\ProductLookupController;
 use OCA\InventoryCheck\Exception\AppAccessDeniedException;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Exception\PermissionDeniedException;
 use OCA\InventoryCheck\Middleware\AppAccessMiddleware;
 use OCA\InventoryCheck\Service\AccessControlService;
@@ -35,12 +36,12 @@ use OCA\InventoryCheck\Service\DirectoryOptionsService;
 use OCA\InventoryCheck\Service\FlangeService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationService;
 use OCA\InventoryCheck\Service\LowStockService;
-use OCA\InventoryCheck\Service\MobileGateService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementService;
 use OCA\InventoryCheck\Service\SettingsSectionCatalog;
 use OCP\AppFramework\Http\DataResponse;
@@ -74,6 +75,7 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 	/** Controllers with shipping HTTP actions (matches routes.php). */
 	private const CONTROLLERS = [
 		PageController::class,
+		\OCA\InventoryCheck\Controller\WorkspaceController::class,
 		LocationController::class,
 		ItemController::class,
 		ProductLookupController::class,
@@ -88,7 +90,8 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 		FlangeController::class,
 		ConfigController::class,
 		DirectoryController::class,
-		LicenseController::class,
+		ScannerController::class,
+		AdministrationController::class,
 		MobileController::class,
 	];
 
@@ -98,8 +101,9 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 	 * @var array<string, list<string>>
 	 */
 	private const AUTHZ_ACTIONS = [
+		\OCA\InventoryCheck\Controller\WorkspaceController::class => ['changeRole', 'index', 'create', 'update', 'destroy', 'members', 'invite', 'removeMember', 'respond', 'notificationAction', 'searchUsers'],
 		PageController::class => [
-			'dashboard', 'items', 'item', 'locations', 'location', 'movements',
+			'workspaces', 'dashboard', 'items', 'item', 'locations', 'location', 'movements',
 			'stocktake', 'stocktakeNew', 'stocktakeCampaign', 'settings', 'settingsSection',
 		],
 		LocationController::class => [
@@ -120,15 +124,12 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 		CycleCountController::class => ['index', 'show', 'create', 'start', 'setCount', 'close'],
 		FavouriteController::class => ['index', 'create', 'destroy'],
 		FlangeController::class => ['status', 'issueMaintWo', 'issueProject', 'saveSettings', 'retryInvoicePush'],
-		ConfigController::class => [
-			'index', 'saveAccess', 'saveOffice', 'saveNotify', 'saveFractional',
-			'saveWaveD', 'reasonCodes', 'locationAcl', 'saveLocationAcl', 'saveProductLookup',
-		],
+		ConfigController::class => ['saveStock', 
+			'index', 'saveNotify', 'saveFractional',
+			'saveWaveD', 'reasonCodes', 'locationAcl', 'saveLocationAcl', ],
 		DirectoryController::class => ['searchUsers', 'searchGroups'],
-		LicenseController::class => [
-			'show', 'apply', 'remove', 'seats', 'assignSeat', 'removeSeat',
-			'devices', 'createDevice', 'regeneratePairCode', 'removeDevice',
-		],
+		AdministrationController::class => ['index', 'save'],
+		ScannerController::class => ['index', 'createDevice', 'regeneratePairCode', 'removeDevice',],
 		MobileController::class => [
 			'bootstrap', 'byCode', 'itemPhoto', 'locationByCode', 'locations',
 			'balances', 'movements', 'scan', 'pairDevice', 'favourites',
@@ -144,7 +145,7 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 	 */
 	private const MIDDLEWARE_AUTHZ = [
 		PageController::class => [
-			'dashboard', 'items', 'item', 'locations', 'location', 'movements',
+			'workspaces', 'dashboard', 'items', 'item', 'locations', 'location', 'movements',
 			'stocktake', 'stocktakeNew', 'stocktakeCampaign', 'settings',
 		],
 		ItemPhotoController::class => ['show'],
@@ -250,7 +251,7 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 							continue;
 						}
 					}
-				} catch (PermissionDeniedException|AppAccessDeniedException|MobileGateException $e) {
+				} catch (PermissionDeniedException|AppAccessDeniedException|MobileRequestException $e) {
 					self::assertNotSame('', $e->getMessage(), $symbol);
 				} catch (\Throwable $e) {
 					$failures[] = $symbol . ' threw ' . $e::class . ': ' . $e->getMessage();
@@ -352,6 +353,7 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 			$factory,
 			$this->createMock(IConfig::class),
 			$this->createMock(\Psr\Log\LoggerInterface::class),
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class),
 		);
 		// Real controller instance so get_class() keeps OCA\InventoryCheck\Controller\ prefix.
 		$ctrl = $this->buildController($class, allow: true, mode: 'happy');
@@ -420,6 +422,13 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 			return $this->byType[$key];
 		}
 
+		if ($typeName === \OCA\InventoryCheck\Service\WorkspaceContext::class) {
+			$mock = $this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class);
+			$mock->method('current')->willReturn(['id' => 1, 'name' => 'Test workspace', 'role' => 'owner', 'status' => 'accepted']);
+			$mock->method('id')->willReturn(1);
+			return $mock;
+		}
+
 		if ($typeName === AccessControlService::class) {
 			$mock = $this->createMock(AccessControlService::class);
 			$mock->method('currentUserId')->willReturnCallback(
@@ -430,19 +439,17 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 					return 'alice';
 				}
 			);
-			$mock->method('isAppAdmin')->willReturn($allow);
-			$mock->method('isOffice')->willReturn($allow);
+			$mock->method('isWorkspaceAdmin')->willReturn($allow);
+			$mock->method('canWrite')->willReturn($allow);
 			$mock->method('isSystemAdmin')->willReturn($allow);
-			$mock->method('canUseApp')->willReturn($allow);
-			$mock->method('denialReasonWhenCannotUseApp')->willReturn(AccessControlService::DENIAL_RESTRICTION);
-			$mock->method('requireAppAdmin')->willReturnCallback(
+			$mock->method('requireWorkspaceAdmin')->willReturnCallback(
 				static function () use ($allow, $mode): void {
 					if (!$allow && $mode === 'authz') {
 						throw new PermissionDeniedException('admin');
 					}
 				}
 			);
-			$mock->method('requireOffice')->willReturnCallback(
+			$mock->method('requireWrite')->willReturnCallback(
 				static function () use ($allow, $mode): void {
 					if (!$allow && $mode === 'authz') {
 						throw new PermissionDeniedException('office');
@@ -450,8 +457,6 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 				}
 			);
 			$mock->method('allowNegativeStock')->willReturn(false);
-			$mock->method('isAccessRestrictionEnabled')->willReturn(false);
-			$mock->method('getJsonIdList')->willReturn([]);
 			$this->byType[$key] = $mock;
 			return $mock;
 		}
@@ -496,12 +501,12 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 			return $this->byType[$key];
 		}
 
-		if ($typeName === MobileGateService::class) {
-			$mock = $this->createMock(MobileGateService::class);
-			$mock->method('assertGate')->willReturnCallback(
+		if ($typeName === MobileAccessService::class) {
+			$mock = $this->createMock(MobileAccessService::class);
+			$mock->method('requireCaller')->willReturnCallback(
 				static function () use ($allow, $mode): void {
 					if (!$allow && $mode === 'authz') {
-						throw new MobileGateException('seat_required');
+						throw new MobileRequestException('seat_required');
 					}
 				}
 			);
@@ -515,7 +520,7 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 			$mock->method('pair')->willReturnCallback(
 				static function () use ($allow, $mode): array {
 					if (!$allow && $mode === 'authz') {
-						throw new MobileGateException('rate_limited');
+						throw new MobileRequestException('rate_limited');
 					}
 					return ['ok' => true, 'deviceId' => 1, 'token' => 'tok'];
 				}
@@ -623,21 +628,11 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 			return $mock;
 		}
 
-		if ($typeName === LicenseService::class) {
-			$mock = $this->createMock(LicenseService::class);
-			$mock->method('status')->willReturn(['ok' => true, 'licensed' => false]);
-			$mock->method('apply')->willReturn(['ok' => true]);
-			$mock->method('remove')->willReturn(['ok' => true]);
-			$mock->method('listSeats')->willReturn(['seats' => [], 'total' => 0]);
-			$mock->method('assignSeat')->willReturn(['seat' => ['userId' => 'bob']]);
-			$mock->method('removeSeat')->willReturnCallback(static function (): void {});
-			$mock->method('listDevices')->willReturn(['devices' => [], 'total' => 0]);
-			$mock->method('createDevice')->willReturn(['id' => 1, 'pairCode' => 'ABC']);
-			$mock->method('regeneratePairCode')->willReturn(['id' => 1, 'pairCode' => 'XYZ']);
-			$mock->method('deactivateDevice')->willReturnCallback(static function (): void {});
-			$mock->method('hashSecret')->willReturn(str_repeat('0', 64));
-			$mock->method('findDeviceByTokenHash')->willReturn(null);
-			$this->byType[$key] = $mock;
+		if ($typeName === ScannerService::class) {
+			$mock = $this->createMock(ScannerService::class);
+			$mock->method('listDevices')->willReturn(['data' => [], 'total' => 0]);
+			$mock->method('createDevice')->willReturn(['device' => ['id' => 1], 'pairCode' => 'ABCD2345']);
+			$mock->method('regeneratePairCode')->willReturn(['device' => ['id' => 1], 'pairCode' => 'ABCD2345']);
 			return $mock;
 		}
 
@@ -785,6 +780,10 @@ final class AtlasApiEndpointHappyAuthzTest extends TestCase
 	{
 		$req = $this->createMock(IRequest::class);
 		$params = [
+			'accept' => true,
+			'invitationId' => 12,
+			'decision' => 'view',
+			'token' => 'fixture-token',
 			'q' => 'wi',
 			'limit' => 50,
 			'offset' => 0,

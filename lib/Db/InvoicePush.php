@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * F8 outbox row — one per project-bound issue that should mirror its
@@ -38,7 +37,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int getUpdatedAt()
  * @method void setUpdatedAt(int $updatedAt)
  */
-class InvoicePush extends Entity
+class InvoicePush extends WorkspaceEntity
 {
 	public const STATUS_PENDING = 'pending';
 	public const STATUS_DONE = 'done';
@@ -56,6 +55,7 @@ class InvoicePush extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('issueRef', 'string');
 		$this->addType('projectId', 'integer');
 		$this->addType('actorUid', 'string');

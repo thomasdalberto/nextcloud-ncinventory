@@ -7,7 +7,7 @@ namespace OCA\InventoryCheck\Tests\Integration;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Service\DevicePairingService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Tests\Support\Iv2TestSigning;
 use Test\TestCase;
 
@@ -42,7 +42,7 @@ final class RegeneratePairCodeIntegrationTest extends TestCase
 	{
 		$app = new Application();
 		$c = $app->getContainer();
-		$license = $c->get(LicenseService::class);
+		$license = $c->get(ScannerService::class);
 		$pairing = $c->get(DevicePairingService::class);
 
 		$license->apply('admin', Iv2TestSigning::signPayload([

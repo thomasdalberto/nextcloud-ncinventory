@@ -4,6 +4,18 @@ declare(strict_types=1);
 
 return [
 	'routes' => [
+		['name' => 'page#workspaces', 'url' => '/workspaces', 'verb' => 'GET'],
+		['name' => 'workspace#index', 'url' => '/api/workspaces', 'verb' => 'GET'],
+		['name' => 'workspace#create', 'url' => '/api/workspaces', 'verb' => 'POST'],
+		['name' => 'workspace#update', 'url' => '/api/workspaces/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#destroy', 'url' => '/api/workspaces/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#members', 'url' => '/api/workspaces/{id}/members', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#changeRole', 'url' => '/api/workspaces/{id}/members', 'verb' => 'PUT', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#invite', 'url' => '/api/workspaces/{id}/members', 'verb' => 'POST', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#removeMember', 'url' => '/api/workspaces/{id}/members', 'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#respond', 'url' => '/api/workspaces/{id}/invitation', 'verb' => 'POST', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#notificationAction', 'url' => '/api/workspaces/{id}/invitation/notification', 'verb' => 'POST', 'requirements' => ['id' => '\\d+']],
+		['name' => 'workspace#searchUsers', 'url' => '/api/workspaces/{id}/users', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
 		['name' => 'page#dashboard', 'url' => '/', 'verb' => 'GET'],
 		['name' => 'page#items', 'url' => '/items', 'verb' => 'GET'],
 		['name' => 'page#item', 'url' => '/items/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
@@ -16,7 +28,7 @@ return [
 		['name' => 'page#settings', 'url' => '/settings', 'verb' => 'GET'],
 		// {section} allowlist pinned to SettingsSectionCatalog::routeRequirement() by SettingsPagesContractTest.
 		['name' => 'page#settingsSection', 'url' => '/settings/{section}', 'verb' => 'GET',
-			'requirements' => ['section' => 'access|office|notifications|quantities|location-access|connections|product-lookup|policies|license|support']],
+			'requirements' => ['section' => 'members|stock|notifications|quantities|location-access|connections|policies|scanners']],
 
 		['name' => 'location#index', 'url' => '/api/locations', 'verb' => 'GET'],
 		['name' => 'location#byCode', 'url' => '/api/locations/by-code/{code}', 'verb' => 'GET', 'requirements' => ['code' => '[^/]+']],
@@ -80,30 +92,26 @@ return [
 		['name' => 'flange#saveSettings', 'url' => '/api/flange/settings', 'verb' => 'POST'],
 		['name' => 'flange#retryInvoicePush', 'url' => '/api/flange/invoice-push/retry', 'verb' => 'POST'],
 
+		['name' => 'administration#index', 'url' => '/api/admin/config', 'verb' => 'GET'],
+		['name' => 'administration#save', 'url' => '/api/admin/config', 'verb' => 'POST'],
+		['name' => 'config#saveStock', 'url' => '/api/config/stock', 'verb' => 'POST'],
 		['name' => 'config#index', 'url' => '/api/config', 'verb' => 'GET'],
-		['name' => 'config#saveAccess', 'url' => '/api/config/access', 'verb' => 'POST'],
-		['name' => 'config#saveOffice', 'url' => '/api/config/office', 'verb' => 'POST'],
 		['name' => 'config#saveNotify', 'url' => '/api/config/notify', 'verb' => 'POST'],
 		['name' => 'config#saveFractional', 'url' => '/api/config/fractional', 'verb' => 'POST'],
 		['name' => 'config#saveWaveD', 'url' => '/api/config/wave-d', 'verb' => 'POST'],
 		['name' => 'config#reasonCodes', 'url' => '/api/reason-codes', 'verb' => 'GET'],
 		['name' => 'config#locationAcl', 'url' => '/api/config/location-acl', 'verb' => 'GET'],
 		['name' => 'config#saveLocationAcl', 'url' => '/api/config/location-acl', 'verb' => 'PUT'],
-		['name' => 'config#saveProductLookup', 'url' => '/api/config/product-lookup', 'verb' => 'POST'],
 
 		['name' => 'directory#searchUsers', 'url' => '/api/directory/users', 'verb' => 'GET'],
 		['name' => 'directory#searchGroups', 'url' => '/api/directory/groups', 'verb' => 'GET'],
 
-		['name' => 'license#show', 'url' => '/api/license', 'verb' => 'GET'],
-		['name' => 'license#apply', 'url' => '/api/license', 'verb' => 'POST'],
-		['name' => 'license#remove', 'url' => '/api/license', 'verb' => 'DELETE'],
-		['name' => 'license#seats', 'url' => '/api/license/seats', 'verb' => 'GET'],
-		['name' => 'license#assignSeat', 'url' => '/api/license/seats', 'verb' => 'POST'],
-		['name' => 'license#removeSeat', 'url' => '/api/license/seats/{uid}', 'verb' => 'DELETE'],
-		['name' => 'license#devices', 'url' => '/api/license/devices', 'verb' => 'GET'],
-		['name' => 'license#createDevice', 'url' => '/api/license/devices', 'verb' => 'POST'],
-		['name' => 'license#regeneratePairCode', 'url' => '/api/license/devices/{id}/pair-code', 'verb' => 'POST', 'requirements' => ['id' => '\\d+']],
-		['name' => 'license#removeDevice', 'url' => '/api/license/devices/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
+
+
+		['name' => 'scanner#index', 'url' => '/api/scanners', 'verb' => 'GET'],
+		['name' => 'scanner#createDevice', 'url' => '/api/scanners', 'verb' => 'POST'],
+		['name' => 'scanner#regeneratePairCode', 'url' => '/api/scanners/{id}/pair-code', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'scanner#removeDevice', 'url' => '/api/scanners/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 
 		['name' => 'mobile#bootstrap', 'url' => '/mobile/v1/bootstrap', 'verb' => 'GET'],
 		['name' => 'mobile#byCode', 'url' => '/mobile/v1/items/by-code/{code}', 'verb' => 'GET', 'requirements' => ['code' => '[^/]+']],

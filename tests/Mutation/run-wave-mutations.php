@@ -8,7 +8,7 @@ require __DIR__ . '/harness.php';
 // Keep Wave A/B/C integration oracles; inventur mutants need close/start races.
 // Dev DB must not accumulate multi-million oc_iv_cc_line / balances rows or each
 // mutant run takes minutes (TRUNCATE those tables in local troubleshooting).
-runMutations(dirname(__DIR__, 2), 'WaveContractsTest|LowStockNotifyServiceTest|StockIssueFacadeTest|WaveAbFeaturesIntegrationTest|WaveCFeaturesIntegrationTest|MobileGateServiceTest|ConfigDirectoryValidationTest|LicenseControllerDeviceBindTest', [
+runMutations(dirname(__DIR__, 2), 'WaveContractsTest|LowStockNotifyServiceTest|StockIssueFacadeTest|WaveAbFeaturesIntegrationTest|WaveCFeaturesIntegrationTest|MobileAccessServiceTest|ConfigDirectoryValidationTest|ScannerControllerDeviceBindTest', [
 	[
 		'name' => 'can-start-always-true',
 		'file' => 'lib/Service/CycleCountSemantics.php',
@@ -149,19 +149,19 @@ runMutations(dirname(__DIR__, 2), 'WaveContractsTest|LowStockNotifyServiceTest|S
 	],
 	[
 		'name' => 'create-device-skips-location-bind',
-		'file' => 'lib/Controller/LicenseController.php',
+		'file' => 'lib/Controller/ScannerController.php',
 		'search' => "if (\$bindIds !== null && \$bindIds !== []) {\n\t\t\t\$deviceId = (int)(\$created['device']['id'] ?? 0);\n\t\t\ttry {\n\t\t\t\tif (\$deviceId <= 0) {\n\t\t\t\t\tthrow new \\RuntimeException('device_create_missing_id');\n\t\t\t\t}\n\t\t\t\t\$this->locationAcl->setForSubject(\n\t\t\t\t\tLocationAclService::TYPE_DEVICE,\n\t\t\t\t\t(string)\$deviceId,\n\t\t\t\t\t\$bindIds,\n\t\t\t\t);\n\t\t\t} catch (\\Throwable \$e) {\n\t\t\t\t// Fail closed: never leave a half-bound scanner that is pairable org-wide.\n\t\t\t\tif (\$deviceId > 0) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\t\$this->license->deactivateDevice(\$deviceId);\n\t\t\t\t\t} finally {\n\t\t\t\t\t\t// purge even if deactivate throws (slot may still have grants).\n\t\t\t\t\t\t\$this->locationAcl->purgeDevice(\$deviceId);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tthrow \$e;\n\t\t\t}\n\t\t}",
 		'replace' => "if (false) {\n\t\t}",
 	],
 	[
 		'name' => 'create-device-skips-bind-rollback',
-		'file' => 'lib/Controller/LicenseController.php',
+		'file' => 'lib/Controller/ScannerController.php',
 		'search' => "} catch (\\Throwable \$e) {\n\t\t\t\t// Fail closed: never leave a half-bound scanner that is pairable org-wide.\n\t\t\t\tif (\$deviceId > 0) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\t\$this->license->deactivateDevice(\$deviceId);\n\t\t\t\t\t} finally {\n\t\t\t\t\t\t// purge even if deactivate throws (slot may still have grants).\n\t\t\t\t\t\t\$this->locationAcl->purgeDevice(\$deviceId);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tthrow \$e;\n\t\t\t}",
 		'replace' => "} catch (\\Throwable \$e) {\n\t\t\t\tthrow \$e;\n\t\t\t}",
 	],
 	[
 		'name' => 'bootstrap-hides-device-strict-flag',
-		'file' => 'lib/Service/MobileGateService.php',
+		'file' => 'lib/Service/MobileAccessService.php',
 		'search' => "'locationAclDevicesStrict' => \$this->locationAcl->isDevicesStrict(),",
 		'replace' => "'locationAclDevicesStrict' => false,",
 	],

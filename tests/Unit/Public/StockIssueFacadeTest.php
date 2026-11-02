@@ -14,7 +14,7 @@ use OCA\InventoryCheck\Exception\InsufficientStockException;
 use OCA\InventoryCheck\Public\StockIssueFacade;
 use OCA\InventoryCheck\Public\StockIssueRequest;
 use OCA\InventoryCheck\Service\MovementService;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IDBConnection;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -29,7 +29,7 @@ class StockIssueFacadeTest extends TestCase
 	private MovementMapper&MockObject $movementMapper;
 	private ItemMapper&MockObject $items;
 	private LocationMapper&MockObject $locations;
-	private IConfig&MockObject $config;
+	private WorkspaceSettings&MockObject $config;
 	private StockIssueFacade $facade;
 
 	protected function setUp(): void
@@ -40,9 +40,9 @@ class StockIssueFacadeTest extends TestCase
 		$this->items = $this->createMock(ItemMapper::class);
 		$this->locations = $this->createMock(LocationMapper::class);
 		$this->locations->method('search')->willReturn(['data' => [], 'total' => 0]);
-		$this->config = $this->createMock(IConfig::class);
-		$this->config->method('getAppValue')->willReturnCallback(
-			static function (string $app, string $key, string $default = ''): string {
+		$this->config = $this->createMock(WorkspaceSettings::class);
+		$this->config->method('get')->willReturnCallback(
+			static function (string $key, string $default = ''): string {
 				if ($key === \OCA\InventoryCheck\Service\FlangeService::KEY_MAINT_ENABLED
 					|| $key === \OCA\InventoryCheck\Service\FlangeService::KEY_PROJECT_ENABLED) {
 					return '1';
@@ -62,9 +62,9 @@ class StockIssueFacadeTest extends TestCase
 
 	public function testFractionalScaleConvertsDisplayQtyToStorage(): void
 	{
-		$config = $this->createMock(IConfig::class);
-		$config->method('getAppValue')->willReturnCallback(
-			static function (string $app, string $key, string $default = ''): string {
+		$config = $this->createMock(WorkspaceSettings::class);
+		$config->method('get')->willReturnCallback(
+			static function (string $key, string $default = ''): string {
 				if ($key === \OCA\InventoryCheck\Service\QtyScale::KEY) {
 					return '3';
 				}
@@ -177,8 +177,8 @@ class StockIssueFacadeTest extends TestCase
 
 	public function testMaintFlangeDisabledFailsClosed(): void
 	{
-		$config = $this->createMock(IConfig::class);
-		$config->method('getAppValue')->willReturn('0');
+		$config = $this->createMock(WorkspaceSettings::class);
+		$config->method('get')->willReturn('0');
 		$facade = new StockIssueFacade(
 			$this->db,
 			$this->movements,

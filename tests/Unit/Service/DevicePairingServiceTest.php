@@ -6,11 +6,11 @@ namespace OCA\InventoryCheck\Tests\Unit\Service;
 
 use OCA\InventoryCheck\Db\ScanDevice;
 use OCA\InventoryCheck\Db\ScanDeviceMapper;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\Clock;
 use OCA\InventoryCheck\Service\DevicePairingService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\Lock\ILockingProvider;
@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
 
 final class DevicePairingServiceTest extends TestCase
 {
-	private LicenseService $license;
+	private ScannerService $license;
 	private ScanDeviceMapper $devices;
 	private Clock $clock;
 	private IConfig $config;
@@ -33,7 +33,7 @@ final class DevicePairingServiceTest extends TestCase
 	protected function setUp(): void
 	{
 		parent::setUp();
-		$this->license = $this->createMock(LicenseService::class);
+		$this->license = $this->createMock(ScannerService::class);
 		$this->devices = $this->createMock(ScanDeviceMapper::class);
 		$this->clock = $this->createMock(Clock::class);
 		$this->clock->method('now')->willReturn(1_700_000_000);
@@ -131,7 +131,7 @@ final class DevicePairingServiceTest extends TestCase
 				// expected
 			}
 		}
-		$this->expectException(MobileGateException::class);
+		$this->expectException(MobileRequestException::class);
 		$this->pairing->pair('ZZZZZZZZ');
 	}
 
@@ -144,7 +144,7 @@ final class DevicePairingServiceTest extends TestCase
 				// expected
 			}
 		}
-		$this->expectException(MobileGateException::class);
+		$this->expectException(MobileRequestException::class);
 		$this->pairing->pair('bad');
 	}
 
@@ -202,7 +202,7 @@ final class DevicePairingServiceTest extends TestCase
 		$this->locking = $this->createMock(ILockingProvider::class);
 		$this->locking->method('acquireLock')->willThrowException(new LockedException('busy'));
 		$this->pairing = $this->makePairing();
-		$this->expectException(MobileGateException::class);
+		$this->expectException(MobileRequestException::class);
 		$this->pairing->pair('ZZZZZZZZ');
 	}
 
@@ -216,8 +216,8 @@ final class DevicePairingServiceTest extends TestCase
 		$method = new \ReflectionMethod(DevicePairingService::class, 'recordFailureOrThrowRateLimited');
 		try {
 			$method->invoke($this->pairing);
-			$this->fail('expected MobileGateException when window is full');
-		} catch (MobileGateException) {
+			$this->fail('expected MobileRequestException when window is full');
+		} catch (MobileRequestException) {
 			// expected
 		}
 		$this->assertSame(

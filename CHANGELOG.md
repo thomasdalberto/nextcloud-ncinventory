@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- Update the app version so existing browsers load the direct invitation actions instead of cached JavaScript. The Docker preview now revalidates this app's static assets after source edits.
+
+### Added
+
+- Personal workspaces with owner, editor and viewer roles; owners can invite Nextcloud users, revoke access, rename or permanently delete workspaces.
+- A private Demo workspace on each account's first visit, with permanent deletion and support for any number of additional workspaces.
+- Workspace isolation across inventory, stocktakes, exports, photos, scanner requests and replay keys, with PostgreSQL integration tests.
+- Repository-local Docker development environment in `dev/` with server and database state under `.tools/`.
+- Nextcloud Activity events for workspace and membership changes, plus actionable invitation notifications and native notification emails with signed, one-click accept/decline links. Opening an invitation notification dismisses it while keeping the invitation pending.
+
+### Changed
+
+- The Docker preview supports an optional LAN bind address and local trusted-host settings in ignored `dev/.env` for phone debugging.
+- Activity event and invitation icons use a black monochrome variant so Nextcloud can invert them in dark themes. InventoryCheck also has its own filter in Activity's sidebar.
+- Editing permissions now come exclusively from workspace membership. Instance administrator status and legacy Office lists do not grant access to private inventories.
+- The legacy Office settings page now holds stock policy; workspace owners manage invitations and roles in Workspaces.
+- Existing instance-wide rows remain unassigned and hidden. This fork starts each account with a fresh private demo rather than importing shared inventory.
+
 ## 1.5.0 - 2026-10-19
 
 ### Added

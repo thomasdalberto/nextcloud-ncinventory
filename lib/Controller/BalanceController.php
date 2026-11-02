@@ -12,7 +12,7 @@ use OCA\InventoryCheck\Service\QtyScale;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 
 class BalanceController extends Controller
@@ -21,7 +21,7 @@ class BalanceController extends Controller
 		IRequest $request,
 		private readonly BalanceService $balances,
 		private readonly AccessControlService $access,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -43,7 +43,7 @@ class BalanceController extends Controller
 			$page['offset'],
 			$negativeOnly,
 		);
-		$result['data'] = array_map(fn (array $b) => QtyScale::formatBalance($b, $this->config), $result['data']);
+		$result['data'] = array_map(fn (array $b) => QtyScale::formatBalance($b, $this->settings), $result['data']);
 		return new JSONResponse($result);
 	}
 }

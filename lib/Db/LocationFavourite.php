@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method string getUserId()
@@ -14,7 +13,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int getCreatedAt()
  * @method void setCreatedAt(int $v)
  */
-class LocationFavourite extends Entity
+class LocationFavourite extends WorkspaceEntity
 {
 	protected string $userId = '';
 	protected int $locationId = 0;
@@ -22,6 +21,7 @@ class LocationFavourite extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('userId', 'string');
 		$this->addType('locationId', 'integer');
 		$this->addType('createdAt', 'integer');

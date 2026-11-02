@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Listener;
 
-use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -20,7 +19,6 @@ use OCP\Group\Events\GroupDeletedEvent;
 class GroupDeletedListener implements IEventListener
 {
 	public function __construct(
-		private AccessControlService $access,
 		private LocationAclService $locationAcl,
 	) {
 	}
@@ -31,7 +29,6 @@ class GroupDeletedListener implements IEventListener
 			return;
 		}
 		$gid = $event->getGroup()->getGID();
-		$this->access->purgeGroup($gid);
 		$this->locationAcl->purgeGroup($gid);
 	}
 }

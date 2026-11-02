@@ -6,17 +6,17 @@ namespace OCA\InventoryCheck\Tests\Integration;
 
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Controller\MobileController;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\BalanceService;
 use OCA\InventoryCheck\Service\CycleCountService;
 use OCA\InventoryCheck\Service\DevicePairingService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationService;
-use OCA\InventoryCheck\Service\MobileGateService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementService;
 use OCA\InventoryCheck\Service\ProductLookupService;
 use OCA\InventoryCheck\Service\ScanIdempotencyService;
@@ -62,7 +62,7 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 		$config = Server::get(IConfig::class);
 		$config->setAppValue(Application::APP_ID, AccessControlService::KEY_ACCESS_RESTRICTION, '0');
 
-		$license = (new Application())->getContainer()->get(LicenseService::class);
+		$license = (new Application())->getContainer()->get(ScannerService::class);
 		$license->apply('admin', Iv2TestSigning::signPayload([
 			'v' => 2,
 			'product' => 'inventorycheck',
@@ -107,8 +107,8 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 
 		return new MobileController(
 			$request,
-			Server::get(MobileGateService::class),
-			Server::get(LicenseService::class),
+			Server::get(MobileAccessService::class),
+			Server::get(ScannerService::class),
 			Server::get(DevicePairingService::class),
 			Server::get(ItemService::class),
 			Server::get(LocationService::class),
@@ -134,7 +134,7 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 		self::assertTrue($data['capabilities']['favourites']);
 		self::assertTrue($data['capabilities']['cycleCount']);
 		self::assertTrue($data['capabilities']['itemPhoto']);
-		self::assertArrayHasKey('isOffice', $data);
+		self::assertArrayHasKey('canWrite', $data);
 		self::assertSame(self::USER, $data['user']);
 	}
 
@@ -168,8 +168,8 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 
 		$controller = new MobileController(
 			$request,
-			Server::get(MobileGateService::class),
-			Server::get(LicenseService::class),
+			Server::get(MobileAccessService::class),
+			Server::get(ScannerService::class),
 			Server::get(DevicePairingService::class),
 			Server::get(ItemService::class),
 			Server::get(LocationService::class),
@@ -187,7 +187,7 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 			Server::get(\OCP\L10N\IFactory::class)->get(Application::APP_ID),
 		);
 
-		$this->expectException(MobileGateException::class);
+		$this->expectException(MobileRequestException::class);
 		$this->expectExceptionMessage('auth_required');
 		$controller->addFavourite();
 	}
@@ -207,8 +207,8 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 
 		$controller = new MobileController(
 			$request,
-			Server::get(MobileGateService::class),
-			Server::get(LicenseService::class),
+			Server::get(MobileAccessService::class),
+			Server::get(ScannerService::class),
 			Server::get(DevicePairingService::class),
 			Server::get(ItemService::class),
 			Server::get(LocationService::class),
@@ -226,7 +226,7 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 			Server::get(\OCP\L10N\IFactory::class)->get(Application::APP_ID),
 		);
 
-		$this->expectException(MobileGateException::class);
+		$this->expectException(MobileRequestException::class);
 		$this->expectExceptionMessage('auth_required');
 		$controller->addFavourite();
 	}
@@ -243,7 +243,7 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 	 */
 	public function testDeviceTokenCannotAccessFavouritesOrCycleCounts(): void
 	{
-		$created = Server::get(LicenseService::class)->createDevice('admin', 'fav-device-deny');
+		$created = Server::get(ScannerService::class)->createDevice('admin', 'fav-device-deny');
 		$paired = Server::get(DevicePairingService::class)->pair($created['pairCode']);
 		$token = $paired['token'];
 
@@ -255,8 +255,8 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 
 		$controller = new MobileController(
 			$request,
-			Server::get(MobileGateService::class),
-			Server::get(LicenseService::class),
+			Server::get(MobileAccessService::class),
+			Server::get(ScannerService::class),
 			Server::get(DevicePairingService::class),
 			Server::get(ItemService::class),
 			Server::get(LocationService::class),
@@ -277,14 +277,14 @@ final class MobileFavouritesAndStocktakeIntegrationTest extends TestCase
 		try {
 			$controller->favourites();
 			self::fail('device favourites must throw auth_required');
-		} catch (MobileGateException $e) {
+		} catch (MobileRequestException $e) {
 			self::assertSame('auth_required', $e->getErrorCode());
 		}
 
 		try {
 			$controller->cycleCounts();
 			self::fail('device cycleCounts must throw auth_required');
-		} catch (MobileGateException $e) {
+		} catch (MobileRequestException $e) {
 			self::assertSame('auth_required', $e->getErrorCode());
 		}
 	}

@@ -91,7 +91,7 @@ final class MovementLockingProtocolTest extends TestCase
 		$start = strpos($src, 'function issueWithRef(');
 		self::assertNotFalse($start);
 		$body = substr($src, $start, 900);
-		self::assertStringContainsString('$this->access->requireOffice($actorUid)', $body);
+		self::assertStringContainsString('$this->access->requireWrite($actorUid)', $body);
 		self::assertStringContainsString('$this->assertLocationAccess($actorUid, $locationId)', $body);
 	}
 

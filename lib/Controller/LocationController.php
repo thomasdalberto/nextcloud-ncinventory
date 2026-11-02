@@ -10,6 +10,7 @@ use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\LocationService;
 use OCA\InventoryCheck\Service\Pagination;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCA\InventoryCheck\Util\LabelSheet;
 use OCA\InventoryCheck\Util\LabelSvg;
 use OCP\AppFramework\Controller;
@@ -28,6 +29,7 @@ class LocationController extends Controller
 		private readonly LocationService $locations,
 		private readonly AccessControlService $access,
 		private readonly IURLGenerator $urlGenerator,
+		private readonly WorkspaceContext $workspace,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -115,7 +117,7 @@ class LocationController extends Controller
 					'sku' => $loc['kind'] ?? 'other',
 				],
 				'svg' => $svg,
-				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.location', ['id' => $id]),
+				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.location', ['id' => $id, 'workspaceId' => $this->workspace->id()]),
 				'downloadUrl' => $this->urlGenerator->linkToRoute('inventorycheck.location.label', ['id' => $id]),
 			],
 		);
@@ -166,7 +168,7 @@ class LocationController extends Controller
 			[
 				'labelsHtml' => $html,
 				'count' => count($locs),
-				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.locations'),
+				'backUrl' => $this->urlGenerator->linkToRoute('inventorycheck.page.locations', ['workspaceId' => $this->workspace->id()]),
 			],
 		);
 		$response->renderAs(TemplateResponse::RENDER_AS_BLANK);

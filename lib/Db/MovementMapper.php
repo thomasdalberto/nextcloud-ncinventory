@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<Movement>
+ * @extends WorkspaceScopedMapper<Movement>
  */
-class MovementMapper extends QBMapper
+class MovementMapper extends WorkspaceScopedMapper
 {
 	public const TABLE = 'iv_movements';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, Movement::class);
+		parent::__construct($db, self::TABLE, Movement::class, $workspace);
 	}
 
 	/**
@@ -78,6 +78,7 @@ class MovementMapper extends QBMapper
 		$countQb = $this->db->getQueryBuilder();
 		$countQb->select($countQb->func()->count('id', 'cnt'));
 		$apply($countQb);
+		$this->workspace->apply($countQb);
 		$result = $countQb->executeQuery();
 		$total = (int)($result->fetchOne() ?: 0);
 		$result->closeCursor();
@@ -140,6 +141,7 @@ class MovementMapper extends QBMapper
 			->from($this->getTableName())
 			->where($qb->expr()->eq('item_id', $qb->createNamedParameter($itemId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('lot_code', $qb->createNamedParameter($lotCode)));
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$sum = $result->fetchOne();
 		$result->closeCursor();
@@ -157,6 +159,7 @@ class MovementMapper extends QBMapper
 			->from($this->getTableName())
 			->groupBy('item_id')
 			->addGroupBy('location_id');
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$out = [];
 		while ($row = $result->fetch()) {

@@ -197,7 +197,7 @@ final class WaveContractsTest extends TestCase
 	public function testItemServiceReorderCeilingUsesQtyScaleMaxStorage(): void
 	{
 		$src = (string)file_get_contents(dirname(__DIR__, 3) . '/lib/Service/ItemService.php');
-		self::assertSame(3, substr_count($src, 'QtyScale::maxStorage($this->config)'));
+		self::assertSame(3, substr_count($src, 'QtyScale::maxStorage($this->settings)'));
 		self::assertStringNotContainsString('$reorder > 1000000', $src);
 		self::assertStringContainsString('item_in_open_stocktake', $src);
 		self::assertSame(2, substr_count($src, 'countOpenCampaignsForItem'));
@@ -250,14 +250,5 @@ final class WaveContractsTest extends TestCase
 	{
 		$src = (string)file_get_contents(dirname(__DIR__, 3) . '/lib/Service/CsvImportService.php');
 		self::assertStringContainsString('100_000_000', $src);
-	}
-
-	public function testLicenseLockTimeoutIsNotReportedAsCapacity(): void
-	{
-		$src = (string)file_get_contents(dirname(__DIR__, 3) . '/lib/Service/LicenseService.php');
-		self::assertStringContainsString("self::DEVICE_LOCK, 'license_busy'", $src);
-		self::assertStringContainsString("self::SEAT_LOCK, 'license_busy'", $src);
-		self::assertStringNotContainsString("self::DEVICE_LOCK, 'device_limit_reached'", $src);
-		self::assertStringNotContainsString("self::SEAT_LOCK, 'seat_limit_reached'", $src);
 	}
 }

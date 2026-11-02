@@ -5,258 +5,1076 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/api/workspaces": {
+      "get": {
+        "summary": "index",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        }
+      },
+      "post": {
+        "summary": "create",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}": {
+      "put": {
+        "summary": "update",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "destroy",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/workspaces/{id}/members": {
+      "get": {
+        "summary": "members",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "invite",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "delete": {
+        "summary": "removeMember",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/workspaces/{id}/invitation": {
+      "post": {
+        "summary": "Accept or decline a pending invitation for the signed-in recipient",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "description": "A supplied invitationId must match the pending membership row. Stale links cannot respond to a later invitation. Requires a Nextcloud session and CSRF token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "accept"
+                ],
+                "properties": {
+                  "accept": {
+                    "type": "boolean"
+                  },
+                  "invitationId": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Use invitationId from GET /api/workspaces to bind the response to that invitation."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}/users": {
+      "get": {
+        "summary": "searchUsers",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Owner or membership required"
+          },
+          "404": {
+            "description": "Workspace or invitation unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
     "/api/locations": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/locations/by-code/{code}": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/locations/{id}": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "put": { "responses": { "200": { "description": "OK" } } },
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/locations/{id}/label.svg": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/locations/{id}/label": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/locations/labels": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/items": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/items/by-code/{code}": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/items/{id}": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "put": { "responses": { "200": { "description": "OK" } } },
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/items/{id}/label.svg": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/items/{id}/label": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/items/labels": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/items/{id}/photo": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } },
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/balances": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/movements": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/movements/receive": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/movements/issue": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/movements/transfer": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/movements/adjust": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/movements/scan": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/low-stock": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/low-stock/per-location": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/export": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/import/dry-run": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/import/commit": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/cycle-counts": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/cycle-counts/{id}": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/cycle-counts/{id}/start": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/cycle-counts/lines/{lineId}": {
-      "put": { "responses": { "200": { "description": "OK" } } }
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/cycle-counts/{id}/close": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/favourites/locations": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/favourites/locations/{locationId}": {
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/flange": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/flange/maint/issue": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/flange/project-issue": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/flange/settings": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/flange/invoice-push/retry": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/config": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/access": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/office": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/notify": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/fractional": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/wave-d": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/reason-codes": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/location-acl": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "put": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/config/product-lookup": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/product-lookup": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/directory/users": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/directory/groups": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/api/license": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } },
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/license/seats": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/license/seats/{uid}": {
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/license/devices": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/license/devices/{id}/pair-code": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/api/license/devices/{id}": {
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
-
     "/mobile/v1/bootstrap": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/items/by-code/{code}": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/items/{id}/photo": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/locations/by-code/{code}": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/locations": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/balances": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/movements": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/movements/scan": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/devices/pair": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/favourites/locations": {
-      "get": { "responses": { "200": { "description": "OK" } } },
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/favourites/locations/{locationId}": {
-      "delete": { "responses": { "200": { "description": "OK" } } }
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/cycle-counts": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/cycle-counts/{id}": {
-      "get": { "responses": { "200": { "description": "OK" } } }
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/cycle-counts/lines/{lineId}": {
-      "put": { "responses": { "200": { "description": "OK" } } }
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     },
     "/mobile/v1/product-lookup": {
-      "post": { "responses": { "200": { "description": "OK" } } }
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{id}/invitation/notification": {
+      "post": {
+        "summary": "Apply a signed invitation notification action for its recipient",
+        "description": "Requires a Nextcloud session, CSRF token and an HMAC bound to the recipient, workspace, invitation generation and decision. View dismisses the notification while leaving the invitation pending. Accept and decline apply the response immediately.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "invitationId",
+                  "decision",
+                  "token"
+                ],
+                "properties": {
+                  "invitationId": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "view",
+                      "accept",
+                      "decline"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied"
+          },
+          "403": {
+            "description": "Invalid signature or recipient"
+          },
+          "404": {
+            "description": "Invitation is no longer pending"
+          },
+          "422": {
+            "description": "Invalid parameters"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
       "ErrorEnvelope": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "object",
-            "required": ["code", "message", "details"],
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
             "properties": {
-              "code": { "type": "string" },
-              "message": { "type": "string" },
-              "details": { "type": "array", "items": {} }
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {}
+              }
             }
           }
         }
@@ -264,4 +1082,3 @@
     }
   }
 }
-

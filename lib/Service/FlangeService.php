@@ -11,7 +11,7 @@ use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Public\StockIssueFacade;
 use OCA\InventoryCheck\Public\StockIssueRequest;
 use OCP\App\IAppManager;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 
 /**
  * Soft flanges to sibling Check apps (Wave B2 / C5).
@@ -29,7 +29,7 @@ class FlangeService
 	public const REF_PROJECT = 'project';
 
 	public function __construct(
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly IAppManager $appManager,
 		private readonly LocationMapper $locations,
 		private readonly AccessControlService $access,
@@ -56,30 +56,30 @@ class FlangeService
 
 	public function setMaintEnabled(bool $enabled): void
 	{
-		$this->config->setAppValue(Application::APP_ID, self::KEY_MAINT_ENABLED, $enabled ? '1' : '0');
+		$this->settings->set(self::KEY_MAINT_ENABLED, $enabled ? '1' : '0');
 	}
 
 	public function setProjectEnabled(bool $enabled): void
 	{
-		$this->config->setAppValue(Application::APP_ID, self::KEY_PROJECT_ENABLED, $enabled ? '1' : '0');
+		$this->settings->set(self::KEY_PROJECT_ENABLED, $enabled ? '1' : '0');
 	}
 
 	public function setInvoiceEnabled(bool $enabled): void
 	{
-		$this->config->setAppValue(Application::APP_ID, self::KEY_INVOICE_ENABLED, $enabled ? '1' : '0');
+		$this->settings->set(self::KEY_INVOICE_ENABLED, $enabled ? '1' : '0');
 	}
 
 	public function setDefaultLocationId(?int $locationId): void
 	{
 		if ($locationId === null || $locationId <= 0) {
-			$this->config->deleteAppValue(Application::APP_ID, self::KEY_DEFAULT_ISSUE_LOCATION);
+			$this->settings->delete(self::KEY_DEFAULT_ISSUE_LOCATION);
 			return;
 		}
 		$loc = $this->locations->findById($locationId);
 		if (!$loc->getActive()) {
 			throw new ValidationException('inactive_location');
 		}
-		$this->config->setAppValue(Application::APP_ID, self::KEY_DEFAULT_ISSUE_LOCATION, (string)$locationId);
+		$this->settings->set(self::KEY_DEFAULT_ISSUE_LOCATION, (string)$locationId);
 	}
 
 	/**
@@ -88,7 +88,7 @@ class FlangeService
 	 */
 	public function issueForMaintWo(string $actorUid, int $woId, array $lines, ?int $locationId = null): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		if (!$this->isMaintEnabled()) {
 			return ['ok' => false, 'inventory_sync' => 'disabled', 'movements' => [], 'errors' => [
 				['sku' => '', 'code' => 'flange_disabled'],
@@ -111,7 +111,7 @@ class FlangeService
 	 */
 	public function issueForProject(string $actorUid, int $projectId, array $lines, ?int $locationId = null): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		if (!$this->isProjectEnabled()) {
 			return ['ok' => false, 'inventory_sync' => 'disabled', 'movements' => [], 'errors' => [
 				['sku' => '', 'code' => 'flange_disabled'],
@@ -223,17 +223,17 @@ class FlangeService
 
 	private function isMaintEnabled(): bool
 	{
-		return $this->config->getAppValue(Application::APP_ID, self::KEY_MAINT_ENABLED, '0') === '1';
+		return $this->settings->get(self::KEY_MAINT_ENABLED, '0') === '1';
 	}
 
 	private function isProjectEnabled(): bool
 	{
-		return $this->config->getAppValue(Application::APP_ID, self::KEY_PROJECT_ENABLED, '0') === '1';
+		return $this->settings->get(self::KEY_PROJECT_ENABLED, '0') === '1';
 	}
 
 	private function isInvoiceEnabled(): bool
 	{
-		return $this->config->getAppValue(Application::APP_ID, self::KEY_INVOICE_ENABLED, '0') === '1';
+		return $this->settings->get(self::KEY_INVOICE_ENABLED, '0') === '1';
 	}
 
 	/**
@@ -254,7 +254,7 @@ class FlangeService
 
 	private function defaultLocationId(): ?int
 	{
-		$raw = (string)$this->config->getAppValue(Application::APP_ID, self::KEY_DEFAULT_ISSUE_LOCATION, '');
+		$raw = (string)$this->settings->get(self::KEY_DEFAULT_ISSUE_LOCATION, '');
 		if ($raw === '' || !ctype_digit($raw)) {
 			return null;
 		}

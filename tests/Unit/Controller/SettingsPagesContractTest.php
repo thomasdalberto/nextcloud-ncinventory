@@ -62,33 +62,10 @@ final class SettingsPagesContractTest extends TestCase
 		self::assertSame('/settings', $route['url'] ?? null);
 	}
 
-	public function testCatalogDefaultIsAccess(): void
+	public function testCatalogDefaultIsMembers(): void
 	{
-		self::assertSame('access', SettingsSectionCatalog::DEFAULT_SECTION);
+		self::assertSame('members', SettingsSectionCatalog::DEFAULT_SECTION);
 		self::assertContains(SettingsSectionCatalog::DEFAULT_SECTION, SettingsSectionCatalog::SECTIONS);
-	}
-
-	public function testLegacyAnchorsPointAtKnownSections(): void
-	{
-		foreach (SettingsSectionCatalog::LEGACY_ANCHORS as $anchor => $section) {
-			self::assertTrue(
-				in_array($section, SettingsSectionCatalog::SECTIONS, true),
-				$anchor . ' maps to unknown section ' . $section,
-			);
-		}
-		self::assertSame('license', SettingsSectionCatalog::LEGACY_ANCHORS['iv-license']);
-		self::assertSame('access', SettingsSectionCatalog::LEGACY_ANCHORS['iv-app-admins']);
-		self::assertSame('support', SettingsSectionCatalog::LEGACY_ANCHORS['iv-support-us']);
-	}
-
-	public function testJsLegacyRedirectMirrorsCatalogAnchors(): void
-	{
-		$js = self::read('js/settings-legacy-redirect.js');
-		foreach (SettingsSectionCatalog::LEGACY_ANCHORS as $anchor => $section) {
-			self::assertStringContainsString("'" . $anchor . "': '" . $section . "'", $js);
-		}
-		self::assertStringContainsString('data-iv-settings-section', $js);
-		self::assertStringContainsString('settingsSections', $js);
 	}
 
 	public function testAppJsSwitchesOnEveryCatalogSection(): void
@@ -114,14 +91,12 @@ final class SettingsPagesContractTest extends TestCase
 
 		$settings = self::read('templates/settings.php');
 		self::assertStringContainsString('parts/settings-nav.php', $settings);
-		self::assertStringContainsString("\$ivSettingsSection === 'support'", $settings);
 	}
 
 	public function testPageControllerWiresCatalog(): void
 	{
 		$src = self::read('lib/Controller/PageController.php');
 		self::assertStringContainsString('SettingsSectionCatalog', $src);
-		self::assertStringContainsString('settings-legacy-redirect', $src);
 		self::assertStringContainsString('RedirectResponse', $src);
 		self::assertStringContainsString('NotFoundResponse', $src);
 		self::assertStringContainsString('settingsSection', $src);
@@ -153,21 +128,5 @@ final class SettingsPagesContractTest extends TestCase
 		self::assertStringContainsString('.iv-switch-field', $css);
 		self::assertStringContainsString('.iv-form-actions', $css);
 		self::assertStringContainsString('.iv-settings-page', $css);
-	}
-
-	public function testAppJsUsesSettingsPageShellHelpers(): void
-	{
-		$js = self::read('js/app.js');
-		self::assertStringContainsString('function settingsSrTitle', $js);
-		self::assertStringContainsString('function settingsSwitchField', $js);
-		self::assertStringContainsString('function settingsFormActions', $js);
-		self::assertStringContainsString('function settingsPageSection', $js);
-		self::assertStringContainsString("className: 'iv-section__title iv-sr-only'", $js);
-		foreach (SettingsSectionCatalog::SECTIONS as $section) {
-			if ($section === 'support') {
-				continue;
-			}
-			self::assertStringContainsString("settingsPageSection('" . $section . "'", $js, $section);
-		}
 	}
 }

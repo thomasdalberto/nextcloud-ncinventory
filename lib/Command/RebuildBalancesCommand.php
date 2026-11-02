@@ -7,6 +7,8 @@ namespace OCA\InventoryCheck\Command;
 use OCA\InventoryCheck\Db\Balance;
 use OCA\InventoryCheck\Db\BalanceMapper;
 use OCA\InventoryCheck\Db\MovementMapper;
+use OCA\InventoryCheck\Db\WorkspaceMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use Symfony\Component\Console\Command\Command;
@@ -25,6 +27,8 @@ class RebuildBalancesCommand extends Command
 		private readonly IConfig $config,
 		private readonly MovementMapper $movements,
 		private readonly BalanceMapper $balances,
+		private readonly WorkspaceContext $workspace,
+		private readonly WorkspaceMapper $workspaces,
 	) {
 		parent::__construct();
 	}
@@ -44,6 +48,16 @@ class RebuildBalancesCommand extends Command
 			$output->writeln('<error>Refused: enable maintenance mode or pass --force (S13).</error>');
 			return 2;
 		}
+
+		$result = 0;
+		foreach ($this->workspaces->allIds() as $id) {
+			$result = max($result, $this->workspace->runAsSystem($id, fn () => $this->rebuild($output)));
+		}
+		return $result;
+	}
+
+	private function rebuild(OutputInterface $output): int
+	{
 
 		$sums = $this->movements->sumDeltasByPair();
 		$drift = 0;

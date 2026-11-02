@@ -97,7 +97,7 @@
 			return true;
 		}
 		if (row.kind === 'issue' || row.kind === 'adjust') {
-			return !!(ctx && (ctx.isOffice || ctx.isAppAdmin));
+			return !!(ctx && (ctx.workspaceRole !== 'viewer' && ctx.canWrite));
 		}
 		return false;
 	}
@@ -176,6 +176,10 @@
 		canReverseMovement: canReverseMovement,
 		movementListQuery: movementListQuery,
 		dateInputToUnix: dateInputToUnix,
+		entityUrl: entityUrl,
+		urlWithId: urlWithId,
+		workspaceResourceUrl: workspaceResourceUrl,
+		workspaceInvitationIntent: workspaceInvitationIntent,
 		masterLabel: masterLabel,
 		resolveMasterId: resolveMasterId,
 		isValidCode: function (value, max) {
@@ -252,6 +256,7 @@
 			headers: {
 				'requesttoken': requestToken(),
 				'Accept': 'application/json',
+				'X-IV-Workspace': ($('#app-content') && $('#app-content').getAttribute('data-iv-workspace-id')) || '',
 			},
 		};
 		if (body !== undefined) {
@@ -547,7 +552,7 @@
 		var variant = opts.variant || 'create';
 		var id = opts.id || ('iv-stocktake-howto-' + variant);
 		var hintKey = opts.hintKey || ('stocktake_' + variant + '_howto_v1');
-		var canStart = ctx.isOffice || ctx.isAppAdmin;
+		var canStart = ctx.workspaceRole !== 'viewer' && ctx.canWrite;
 		var spec;
 		if (variant === 'count') {
 			spec = {
@@ -668,7 +673,7 @@
 	 */
 	function pageHowToCard(ctx, page) {
 		var pages = ctx.urls && ctx.urls.pages ? ctx.urls.pages : {};
-		var canOffice = ctx.isOffice || ctx.isAppAdmin;
+		var canOffice = ctx.workspaceRole !== 'viewer' && ctx.canWrite;
 		if (page === 'dashboard') {
 			if (canOffice) {
 				return howToCard(ctx, {
@@ -910,31 +915,6 @@
 				],
 			});
 		}
-		if (page === 'settings-office') {
-			return howToCard(ctx, {
-				id: 'iv-howto-settings-office',
-				hintKey: 'settings_office_howto_v1',
-				title: tr('How office rights work'),
-				lead: tr('Office users receive, adjust, and run stocktakes. Field users mainly issue.'),
-				steps: [
-					{
-						key: 'people',
-						title: tr('1. Pick office users and groups'),
-						body: tr('Search the directory — do not type raw user ids. Office people get the warehouse tools.'),
-					},
-					{
-						key: 'negative',
-						title: tr('2. Decide if negative stock is allowed'),
-						body: tr('Leave it off unless you intentionally book below zero. The Dashboard flags negatives when it is off.'),
-					},
-					{
-						key: 'save',
-						title: tr('3. Save'),
-						body: tr('Changes apply on the next booking. Admins always keep full access.'),
-					},
-				],
-			});
-		}
 		if (page === 'settings-notifications') {
 			return howToCard(ctx, {
 				id: 'iv-howto-settings-notifications',
@@ -1085,64 +1065,11 @@
 				],
 			});
 		}
-		if (page === 'settings-license') {
-			return howToCard(ctx, {
-				id: 'iv-howto-settings-license',
-				hintKey: 'settings_license_howto_v1',
-				title: tr('How licensing works'),
-				lead: tr('Paste an IV2 key, then assign seats and scanner slots.'),
-				steps: [
-					{
-						key: 'key',
-						title: tr('1. Paste the official IV2 key'),
-						body: tr('Use the key from your licence email. Invalid keys are rejected with a clear error.'),
-					},
-					{
-						key: 'seats',
-						title: tr('2. Assign mobile seats'),
-						body: tr('Each phone user needs a seat. Remove seats you no longer need.'),
-					},
-					{
-						key: 'devices',
-						title: tr('3. Create scanner device slots'),
-						body: tr('Pairing codes let warehouse scanners sign in without sharing passwords.'),
-					},
-				],
-			});
-		}
-		if (page === 'settings-support') {
-			return howToCard(ctx, {
-				id: 'iv-howto-settings-support',
-				hintKey: 'settings_support_howto_v1',
-				title: tr('How to get help'),
-				lead: tr('Bugs, ideas, and paid help — without leaving this page.'),
-				steps: [
-					{
-						key: 'bugs',
-						title: tr('1. Report bugs and ideas on GitHub'),
-						body: tr('Open-source care stays free. Include your Nextcloud and app version.'),
-					},
-					{
-						key: 'sponsor',
-						title: tr('2. Support development if the app helps you'),
-						body: tr('Sponsors keep InventoryCheck moving. Links are on this page.'),
-					},
-					{
-						key: 'commission',
-						title: tr('3. Ask for commissioned work when you need a deadline'),
-						body: tr('Organisations can book prioritised features via the contact options below.'),
-					},
-				],
-			});
-		}
 		return null;
 	}
 
 	/** Prepend a settings how-to when the section has one (Access keeps the tip). */
 	function withSettingsHowTo(ctx, section, kids) {
-		if (section === 'access') {
-			return kids;
-		}
 		var card = pageHowToCard(ctx, 'settings-' + section);
 		if (!card) {
 			return kids;
@@ -1154,41 +1081,6 @@
 	 * Access settings lockout tip — one sentence, dismissible.
 	 * (Replaces the old 3-step essay that duplicated the form.)
 	 */
-	function accessQuickstartCard(ctx) {
-		var dismissBtn = el('button', {
-			type: 'button',
-			className: 'button iv-hint-dismiss',
-			'aria-label': tr('Hide tips'),
-			title: tr('Hide tips'),
-			'aria-controls': 'iv-settings-quickstart',
-			text: '\u00d7',
-		});
-		dismissBtn.setAttribute('data-iv-dismiss-hint', 'settings_access_quickstart_v1');
-		var card = el('aside', {
-			className: 'iv-tip iv-empty--quickstart iv-callout iv-callout--warning',
-			id: 'iv-settings-quickstart',
-			role: 'status',
-			'aria-labelledby': 'iv-settings-quickstart-title',
-			hidden: '',
-		}, [
-			el('div', { className: 'iv-tip__content iv-quickstart' }, [
-				el('p', {
-					id: 'iv-settings-quickstart-title',
-					className: 'iv-tip__title',
-					text: tr('Add allowlist entries before turning restriction on'),
-				}),
-				el('p', {
-					className: 'iv-tip__text',
-					text: tr('Otherwise you can lock yourself out until a system admin re-opens the app.'),
-				}),
-			]),
-			dismissBtn,
-		]);
-		wireDismissibleHint(card, dismissBtn, ctx.userId, 'settings_access_quickstart_v1');
-		return card;
-	}
-
-	/** Settings-pages standard: page H1 already names the topic — section title is AT-only. */
 	function settingsSrTitle(id, text) {
 		return el('h2', { id: id, className: 'iv-section__title iv-sr-only', text: text });
 	}
@@ -1244,12 +1136,14 @@
 		return {
 			root: root,
 			page: root.getAttribute('data-iv-page') || '',
+			workspaceId: root.getAttribute('data-iv-workspace-id') || '',
+			workspaceRole: root.getAttribute('data-iv-workspace-role') || '',
 			settingsSection: root.getAttribute('data-iv-settings-section') || '',
 			entityId: root.getAttribute('data-iv-entity-id'),
 			userId: root.getAttribute('data-iv-current-user') || '',
-			isAppAdmin: root.getAttribute('data-iv-is-app-admin') === '1',
+			isWorkspaceAdmin: root.getAttribute('data-iv-is-workspace-admin') === '1',
 			isSystemAdmin: root.getAttribute('data-iv-is-system-admin') === '1',
-			isOffice: root.getAttribute('data-iv-is-office') === '1',
+			canWrite: root.getAttribute('data-iv-can-write') === '1',
 			allowNegative: root.getAttribute('data-iv-allow-negative') === '1',
 			locationReorderHintEnabled: root.getAttribute('data-iv-location-reorder-hint') === '1',
 			requireAdjustReason: root.getAttribute('data-iv-require-adjust-reason') === '1',
@@ -1274,7 +1168,8 @@
 		var attrs = {
 			type: opts.type || 'button',
 			className: 'button' + (opts.primary ? ' primary' : '') + (opts.className ? ' ' + opts.className : ''),
-			disabled: !!opts.disabled,
+			disabled: !!opts.disabled || ($('#app-content') && $('#app-content').getAttribute('data-iv-workspace-role') === 'viewer'
+				&& ['receive', 'issue', 'transfer', 'adjust', 'reverse', 'item-new', 'stocktake-new'].indexOf(opts['data-iv-action']) !== -1),
 			onclick: opts.onclick,
 		};
 		['aria-label', 'aria-pressed', 'aria-busy', 'title', 'id', 'data-iv-action'].forEach(function (key) {
@@ -1687,7 +1582,7 @@
 
 			clear(ctx.actions);
 			// Bachus: role-aware primary — office receives, field issues; transfer/adjust under "More".
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(btn(tr('Receive stock'), {
 							'data-iv-action': 'receive',
 					primary: true,
@@ -1697,7 +1592,7 @@
 			}
 			ctx.actions.appendChild(btn(tr('Issue stock'), {
 							'data-iv-action': 'issue',
-				primary: !(ctx.isOffice || ctx.isAppAdmin),
+				primary: !ctx.canWrite,
 				className: 'iv-btn--touch',
 				onclick: function () { openIssueDialog(ctx); },
 			}));
@@ -1706,7 +1601,7 @@
 					onclick: function () { openTransferDialog(ctx); },
 				}),
 			];
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				moreKids.push(btn(tr('Adjust stock'), {
 					onclick: function () { openAdjustDialog(ctx); },
 				}));
@@ -1764,7 +1659,7 @@
 									});
 								} },
 								{ label: tr('Actions'), render: function (r) {
-									if (!(ctx.isOffice || ctx.isAppAdmin)) {
+									if (ctx.workspaceRole === 'viewer' || !ctx.canWrite) {
 										return el('span', { className: 'iv-muted', text: '—' });
 									}
 									return el('div', { className: 'iv-row__actions', 'data-iv-neg-actions': '1' }, [
@@ -1801,7 +1696,7 @@
 								{ label: tr('Suggested'), render: function (r) { return formatQty(r.suggestedQty); } },
 								{ label: tr('Actions'), render: function (r) {
 									var kids = [];
-									if (ctx.isOffice || ctx.isAppAdmin) {
+									if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 										kids.push(btn(tr('Receive'), {
 											primary: true,
 											className: 'iv-btn--touch',
@@ -1862,7 +1757,7 @@
 								{ label: tr('On hand'), render: function (r) { return formatQty(r.qty); } },
 								{ label: tr('Reorder at'), render: function (r) { return formatQty(r.reorderLevel); } },
 								{ label: tr('Actions'), render: function (r) {
-									if (!(ctx.isOffice || ctx.isAppAdmin)) {
+									if (ctx.workspaceRole === 'viewer' || !ctx.canWrite) {
 										return el('span', { className: 'iv-muted', text: '—' });
 									}
 									return el('div', { className: 'iv-row__actions', 'data-iv-perloc-actions': '1' }, [
@@ -1891,7 +1786,7 @@
 						? emptyState(
 							tr('No movements yet'),
 							tr('Receive stock to start the ledger.'),
-							(ctx.isOffice || ctx.isAppAdmin)
+							(ctx.workspaceRole !== 'viewer' && ctx.canWrite)
 								? btn(tr('Receive stock'), {
 							'data-iv-action': 'receive', primary: true, onclick: function () { openReceiveDialog(ctx); } })
 								: null
@@ -1956,13 +1851,18 @@
 		return map[kind] || ctx.urls.api.movements;
 	}
 
+	function workspaceResourceUrl(ctx, url) {
+		if (!ctx.workspaceId) return url;
+		return url + (url.indexOf('?') === -1 ? '?' : '&') + 'workspaceId=' + encodeURIComponent(ctx.workspaceId);
+	}
+
 	function exportCsvHref(ctx, kind) {
 		var lang = (document.documentElement.getAttribute('lang') || 'en').toLowerCase().slice(0, 2);
 		var href = ctx.urls.api.export + '?kind=' + encodeURIComponent(kind);
 		if (lang === 'de') {
 			href += '&lang=de';
 		}
-		return href;
+		return workspaceResourceUrl(ctx, href);
 	}
 
 	function byCodeUrl(ctx, code) {
@@ -1971,15 +1871,16 @@
 	}
 
 	function entityUrl(base, id) {
-		return String(base || '').replace(/\/?$/, '/') + id;
+		var parts = String(base || '').split('?');
+		return parts[0].replace(/\/?$/, '/') + id + (parts[1] ? '?' + parts[1] : '');
 	}
 
 	function labelPrintUrl(ctx, id) {
-		return urlWithId(ctx.urls.api.itemLabelPrint, id);
+		return workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.itemLabelPrint, id));
 	}
 
 	function labelSvgUrl(ctx, id) {
-		return urlWithId(ctx.urls.api.itemLabel, id);
+		return workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.itemLabel, id));
 	}
 
 	/**
@@ -1988,7 +1889,7 @@
 	 * {@see labelPrintUrl}, generalised for the Wave A–B endpoints.
 	 */
 	function urlWithId(tmpl, id) {
-		return String(tmpl || '').replace(/\/0(\/|$)/, '/' + id + '$1');
+		return String(tmpl || '').replace(/\/0(\/|\?|$)/, '/' + id + '$1');
 	}
 
 	function fillSelect(selectEl, rows, valueKey, labelFn, placeholder) {
@@ -2550,6 +2451,7 @@
 	}
 
 	function openReceiveDialog(ctx, prefill) {
+		if (ctx.workspaceRole === 'viewer') return;
 		openMovementDialog(ctx, {
 			title: tr('Receive stock'),
 			path: 'receive',
@@ -2560,6 +2462,7 @@
 	}
 
 	function openIssueDialog(ctx, prefill) {
+		if (ctx.workspaceRole === 'viewer') return;
 		openMovementDialog(ctx, {
 			title: tr('Issue stock'),
 			path: 'issue',
@@ -2570,6 +2473,7 @@
 	}
 
 	function openTransferDialog(ctx, prefill) {
+		if (ctx.workspaceRole === 'viewer') return;
 		openMovementDialog(ctx, {
 			title: tr('Transfer stock'),
 			transfer: true,
@@ -2580,6 +2484,7 @@
 	}
 
 	function openAdjustDialog(ctx, prefill) {
+		if (ctx.workspaceRole === 'viewer') return;
 		openMovementDialog(ctx, {
 			title: tr('Adjust stock'),
 			adjust: true,
@@ -2809,7 +2714,7 @@
 					onclick: function () {
 						var ids = Object.keys(selected);
 						if (!ids.length) return;
-						window.open(ctx.urls.api.itemBulkLabels + '?ids=' + ids.join(','), '_blank', 'noopener');
+						window.open(workspaceResourceUrl(ctx, ctx.urls.api.itemBulkLabels + '?ids=' + ids.join(',')), '_blank', 'noopener');
 					},
 				});
 				// Prefer omit over disable: insert after New item when present.
@@ -2824,7 +2729,7 @@
 		}
 		setBusy(mount, true);
 		clear(mount);
-		if (ctx.isOffice) {
+		if (ctx.canWrite) {
 			clear(ctx.actions);
 			ctx.actions.appendChild(btn(tr('New item'), {
 				'data-iv-action': 'item-new',
@@ -2955,14 +2860,14 @@
 									load();
 								},
 							})
-							: ((ctx.isOffice || ctx.isAppAdmin)
+							: ((ctx.workspaceRole !== 'viewer' && ctx.canWrite)
 								? btn(tr('New item'), { 'data-iv-action': 'item-new', primary: true, onclick: function () { openItemDialog(ctx, null); } })
 								: null)
 					));
 					return;
 				}
 				var columns = [];
-				if (ctx.isOffice) {
+				if (ctx.canWrite) {
 					columns.push({ label: tr('Select'), render: function (r) {
 						return el('label', { className: 'iv-check-hit' }, [el('input', {
 							type: 'checkbox',
@@ -2995,7 +2900,7 @@
 					{ label: tr('UoM'), key: 'uom' },
 					{ label: tr('Reorder'), key: 'reorderLevel' },
 					{ label: tr('Actions'), render: function (r) {
-						if (!(ctx.isOffice || ctx.isAppAdmin)) {
+						if (ctx.workspaceRole === 'viewer' || !ctx.canWrite) {
 							return el('span', { className: 'iv-muted', text: '—' });
 						}
 						// Bachus: Edit only on the list — Deactivate lives on detail under More.
@@ -3107,7 +3012,7 @@
 			field(tr('Scan code (optional)'), scan, { name: 'scanCode' }),
 			// Mirror the API's requireOffice gate: field users must never see
 			// a lookup affordance that can only 403 on them.
-			ctx.productLookupEnabled && ctx.isOffice
+			ctx.productLookupEnabled && ctx.canWrite
 				? productLookupPanel(ctx, { scan: scan, sku: sku, name: name, description: description })
 				: null,
 			field(tr('Description (optional)'), description, { name: 'description' }),
@@ -3169,14 +3074,14 @@
 		if (item.hasPhoto) {
 			host.appendChild(el('img', {
 				className: 'iv-item-photo__img',
-				src: urlWithId(ctx.urls.api.itemPhoto, id) + '?v=' + String(item.updatedAt || Date.now()),
+				src: workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.itemPhoto, id) + '?v=' + String(item.updatedAt || Date.now())),
 				alt: item.name,
 				loading: 'lazy',
 			}));
 		} else {
 			host.appendChild(el('p', { className: 'iv-muted', text: tr('No photo yet.') }));
 		}
-		if (!(ctx.isOffice || ctx.isAppAdmin)) {
+		if (ctx.workspaceRole === 'viewer' || !ctx.canWrite) {
 			return;
 		}
 		var fileInput = el('input', {
@@ -3187,7 +3092,7 @@
 				if (!fileInput.files || !fileInput.files[0]) return;
 				var fd = new FormData();
 				fd.append('file', fileInput.files[0]);
-				fetch(urlWithId(ctx.urls.api.itemPhotoUpload, id), {
+				fetch(workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.itemPhotoUpload, id)), {
 					method: 'POST',
 					credentials: 'same-origin',
 					headers: { requesttoken: requestToken() },
@@ -3237,7 +3142,7 @@
 			clear(mount);
 			setBusy(mount, false);
 			clear(ctx.actions);
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(btn(tr('Edit'), {
 					onclick: function () { openItemDialog(ctx, item); },
 				}));
@@ -3249,7 +3154,7 @@
 				rel: 'noopener noreferrer',
 				text: tr('Print label'),
 			}));
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(actionsMoreMenu(tr('More'), [
 					btn(item.active ? tr('Deactivate') : tr('Reactivate'), {
 						onclick: function () {
@@ -3315,7 +3220,7 @@
 					? emptyState(
 						tr('No stock yet.'),
 						tr('Receive stock at a location to start tracking this item.'),
-						(ctx.isOffice || ctx.isAppAdmin)
+						(ctx.workspaceRole !== 'viewer' && ctx.canWrite)
 							? btn(tr('Receive stock'), {
 							'data-iv-action': 'receive',
 								primary: true,
@@ -3341,7 +3246,7 @@
 						} },
 						{ label: tr('Actions'), render: function (r) {
 							var kids = [];
-							if (ctx.isOffice || ctx.isAppAdmin) {
+							if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 								kids.push(btn(tr('Receive'), {
 									className: 'iv-btn--touch',
 									onclick: function () {
@@ -3350,7 +3255,7 @@
 								}));
 							}
 							kids.push(btn(tr('Issue'), {
-								primary: !(ctx.isOffice || ctx.isAppAdmin),
+								primary: !ctx.canWrite,
 								className: 'iv-btn--touch',
 								onclick: function () {
 									openIssueDialog(ctx, { itemId: id, locationId: r.locationId });
@@ -3371,7 +3276,7 @@
 	function renderLocations(ctx) {
 		var mount = ctx.mount;
 		clear(mount);
-		if (ctx.isOffice) {
+		if (ctx.canWrite) {
 			clear(ctx.actions);
 			ctx.actions.appendChild(btn(tr('New location'), {
 				primary: true,
@@ -3492,7 +3397,7 @@
 									load();
 								},
 							})
-							: ((ctx.isOffice || ctx.isAppAdmin)
+							: ((ctx.workspaceRole !== 'viewer' && ctx.canWrite)
 								? btn(tr('New location'), { primary: true, onclick: function () { openLocationDialog(ctx); } })
 								: null)
 					));
@@ -3516,7 +3421,7 @@
 						{ label: tr('Code'), key: 'code' },
 						{ label: tr('Kind'), render: function (r) { return locationKindLabel(r.kind); } },
 						{ label: tr('Actions'), render: function (r) {
-							if (!(ctx.isOffice || ctx.isAppAdmin)) {
+							if (ctx.workspaceRole === 'viewer' || !ctx.canWrite) {
 								return el('span', { className: 'iv-muted', text: '—' });
 							}
 							var kids = [
@@ -3615,7 +3520,7 @@
 			var isFavourite = favourites.some(function (f) { return Number(f.id) === id; });
 			clear(mount);
 			clear(ctx.actions);
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(btn(tr('Edit'), {
 					onclick: function () { openLocationDialog(ctx, loc); },
 				}));
@@ -3635,13 +3540,13 @@
 			if (ctx.urls.api.locationLabelPrint) {
 				ctx.actions.appendChild(el('a', {
 					className: 'button primary',
-					href: urlWithId(ctx.urls.api.locationLabelPrint, id),
+					href: workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.locationLabelPrint, id)),
 					target: '_blank',
 					rel: 'noopener',
 					text: tr('Print location label'),
 				}));
 			}
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(actionsMoreMenu(tr('More'), [
 					btn(loc.active ? tr('Deactivate') : tr('Reactivate'), {
 						onclick: function () {
@@ -3663,7 +3568,7 @@
 				? emptyState(
 					tr('No stock at this location.'),
 					tr('Receive stock here, or transfer from another location.'),
-					(ctx.isOffice || ctx.isAppAdmin)
+					(ctx.workspaceRole !== 'viewer' && ctx.canWrite)
 						? btn(tr('Receive stock'), {
 							'data-iv-action': 'receive',
 							primary: true,
@@ -3688,7 +3593,7 @@
 					} },
 					{ label: tr('Actions'), render: function (r) {
 						var kids = [];
-						if (ctx.isOffice || ctx.isAppAdmin) {
+						if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 							kids.push(btn(tr('Receive'), {
 								className: 'iv-btn--touch',
 								onclick: function () {
@@ -3697,7 +3602,7 @@
 							}));
 						}
 						kids.push(btn(tr('Issue'), {
-							primary: !(ctx.isOffice || ctx.isAppAdmin),
+							primary: !ctx.canWrite,
 							className: 'iv-btn--touch',
 							onclick: function () {
 								openIssueDialog(ctx, { itemId: r.itemId, locationId: id });
@@ -3770,7 +3675,7 @@
 		if (!reuseShell) {
 			setBusy(mount, true);
 			clear(ctx.actions);
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(btn(tr('Receive'), {
 					primary: true,
 					className: 'iv-btn--touch',
@@ -3778,11 +3683,11 @@
 				}));
 			}
 			ctx.actions.appendChild(btn(tr('Issue'), {
-				primary: !(ctx.isOffice || ctx.isAppAdmin),
+				primary: !ctx.canWrite,
 				className: 'iv-btn--touch',
 				onclick: function () { openIssueDialog(ctx); },
 			}));
-			if (ctx.isOffice || ctx.isAppAdmin) {
+			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(actionsMoreMenu(tr('More'), [
 					el('a', {
 						href: exportCsvHref(ctx, 'movements'),
@@ -3877,7 +3782,7 @@
 						filtersActive
 							? btn(tr('Clear'), {
 							'data-iv-action': 'filter-clear', primary: true, onclick: function () { renderMovements(ctx, null); } })
-							: ((ctx.isOffice || ctx.isAppAdmin)
+							: ((ctx.workspaceRole !== 'viewer' && ctx.canWrite)
 								? btn(tr('Receive stock'), {
 							'data-iv-action': 'receive', primary: true, onclick: function () { openReceiveDialog(ctx); } })
 								: btn(tr('Issue stock'), {
@@ -4760,260 +4665,62 @@
 		return wrap;
 	}
 
+
 	function renderSettings(ctx) {
 		var mount = ctx.mount;
-		if (!ctx.isAppAdmin) {
-			clear(mount);
-			mount.appendChild(emptyState(tr('Access denied'), tr('Only app administrators can open settings.'), null));
+		clear(mount);
+		if (!ctx.isWorkspaceAdmin) {
+			mount.appendChild(emptyState(tr('Access denied'), tr('Only workspace admins can open these settings.'), null));
+			return;
+		}
+		var section = ctx.settingsSection || 'members';
+		if (section === 'members') {
+			renderWorkspaceMembers(ctx, { id: ctx.workspaceId }, mount);
 			return;
 		}
 		setBusy(mount, true);
-		var section = ctx.settingsSection || 'access';
-		if (section === 'support') {
-			clear(mount);
-			setBusy(mount, false);
-			mount.setAttribute('hidden', '');
-			mount.setAttribute('aria-hidden', 'true');
-			var oldSupportHowTo = document.getElementById('iv-howto-settings-support');
-			if (oldSupportHowTo && oldSupportHowTo.parentNode) {
-				oldSupportHowTo.parentNode.removeChild(oldSupportHowTo);
-			}
-			var supportHowTo = pageHowToCard(ctx, 'settings-support');
-			var supportHost = document.querySelector('[data-support-us="1"]');
-			if (supportHowTo && supportHost && supportHost.parentNode) {
-				supportHost.parentNode.insertBefore(supportHowTo, supportHost);
-			}
-			return;
-		}
 		Promise.all([
 			api('GET', ctx.urls.api.config),
-			api('GET', ctx.urls.api.license),
-			api('GET', ctx.urls.api.flangeStatus),
-			api('GET', ctx.urls.api.locations + '?limit=200&offset=0&active=1'),
-			ctx.urls.api.licenseDevices
-				? api('GET', ctx.urls.api.licenseDevices + '?limit=100&offset=0').catch(function () {
-					return { data: [] };
-				})
-				: Promise.resolve({ data: [] }),
+			section === 'connections' ? api('GET', ctx.urls.api.flangeStatus) : Promise.resolve({}),
+			['connections', 'location-access'].includes(section) ? api('GET', ctx.urls.api.locations + '?limit=200&offset=0&active=1') : Promise.resolve({data: []}),
+			['scanners', 'location-access'].includes(section) ? api('GET', ctx.urls.api.scanners + '?limit=200&offset=0') : Promise.resolve({data: []}),
+			section === 'notifications' ? api('GET', entityUrl(ctx.urls.api.workspaces, ctx.workspaceId) + '/members') : Promise.resolve({data: []}),
 		]).then(function (results) {
-			var cfg = results[0];
-			var lic = results[1];
-			var flange = results[2];
-			var flangeLocations = results[3].data || [];
-			var licenseDevices = (results[4] && results[4].data) || [];
+			var cfg = results[0], flange = results[1], flangeLocations = results[2].data || [], scanners = results[3].data || [];
+			var directoryUrls = {user: ctx.urls.api.directorySearchUsers, group: ctx.urls.api.directorySearchGroups};
 			clear(mount);
 			setBusy(mount, false);
-
-			var restriction = el('input', {
-				type: 'checkbox',
-				className: 'iv-switch__input',
-				checked: cfg.accessRestrictionEnabled ? '' : null,
-				id: 'iv-access-restriction',
-			});
-			var neg = el('input', {
-				type: 'checkbox',
-				className: 'iv-switch__input',
-				checked: cfg.allowNegativeStock ? '' : null,
-				id: 'iv-allow-negative',
-			});
-			var directoryUrls = { user: ctx.urls.api.directorySearchUsers, group: ctx.urls.api.directorySearchGroups };
-			var officeUsersPicker = createIdPicker({
-				kind: 'user',
-				searchUrls: directoryUrls,
-				initialIds: cfg.officeUsers || [],
-			});
-			var officeGroupsPicker = createIdPicker({
-				kind: 'group',
-				searchUrls: directoryUrls,
-				initialIds: cfg.officeGroups || [],
-			});
-			var allowedUsersPicker = createIdPicker({
-				kind: 'user',
-				searchUrls: directoryUrls,
-				initialIds: cfg.allowedUsers || [],
-			});
-			var allowedGroupsPicker = createIdPicker({
-				kind: 'group',
-				searchUrls: directoryUrls,
-				initialIds: cfg.allowedGroups || [],
-			});
-			// L0 only — matches ConfigController::saveAccess privilege boundary.
-			var canEditAppAdmins = !!(ctx.isSystemAdmin || cfg.isSystemAdmin);
-			var appAdminsPicker = createIdPicker({
-				kind: 'user',
-				searchUrls: directoryUrls,
-				initialIds: cfg.appAdmins || [],
-				disabled: !canEditAppAdmins,
-			});
-
-			var allowListHost = el('div', {
-				className: 'iv-access-allowlists',
-				'data-iv-access-allowlists': '1',
-			}, [
-				pickerField(tr('Allowed users'), allowedUsersPicker, { name: 'allowedUsers' }),
-				pickerField(tr('Allowed groups'), allowedGroupsPicker, { name: 'allowedGroups' }),
-			]);
-			function syncAllowListsVisibility() {
-				if (restriction.checked) {
-					allowListHost.removeAttribute('hidden');
-				} else {
-					allowListHost.setAttribute('hidden', '');
-				}
-			}
-			restriction.addEventListener('change', syncAllowListsVisibility);
-			syncAllowListsVisibility();
-
-			var accessKids = [
-				settingsSrTitle('iv-access-title', tr('Access control')),
-				el('div', {
-					className: 'iv-callout iv-callout--info',
-					role: 'status',
-					'aria-labelledby': 'iv-access-gate-title',
-				}, [
-					el('p', { id: 'iv-access-gate-title' }, [
-						el('strong', { text: tr('This list controls the door, not the stock.') }),
-					]),
-					el('p', {
-						className: 'iv-callout__text',
-						text: tr('Office rights and location ACL still decide what they can book. Administrators always keep access.'),
-					}),
-				]),
-				settingsSwitchField(
-					restriction,
-					tr('Restrict access to allow-listed users and groups')
-				),
-				accessQuickstartCard(ctx),
-				allowListHost,
-				(function () {
-					// DOM id for UJ-7 / deep links — assign via .id so DirectoryPicker
-					// contract never sees a legacy raw-field id attribute literal.
-					var wrap = el('div', { className: 'iv-picker-anchor' });
-					wrap.id = 'iv-app-admins';
-					wrap.appendChild(pickerField(tr('Delegated app administrators'), appAdminsPicker, { name: 'appAdmins' }));
-					return wrap;
-				}()),
-				el('p', {
-					className: 'iv-field__hint',
-					id: 'iv-app-admins-hint',
-					text: canEditAppAdmins
-						? tr('People who may change settings (in addition to system admins).') + ' ' + tr('Search and pick colleagues who may change access policy, office lists, and the license (in addition to system administrators). Never type a raw user id.')
-						: tr('Only Nextcloud system administrators can change the app administrator list.'),
-				}),
-			];
-
-			var notifyUsersPicker = createIdPicker({
-				kind: 'user',
-				searchUrls: directoryUrls,
-				initialIds: cfg.lowStockNotifyUsers || [],
-			});
-			var notifyGroupsPicker = createIdPicker({
-				kind: 'group',
-				searchUrls: directoryUrls,
-				initialIds: cfg.lowStockNotifyGroups || [],
-			});
-			var reorderHint = el('input', {
-				type: 'checkbox',
-				className: 'iv-switch__input',
-				id: 'iv-reorder-hint',
-				checked: cfg.locationReorderHintEnabled ? '' : null,
-			});
-
-			function withSaveBusy(ev, work) {
-				var saveBtn = ev && ev.currentTarget ? ev.currentTarget : null;
+			function save(url, payload, trigger) {
+				if (trigger) trigger.disabled = true;
 				clearFieldErrors(mount);
-				if (saveBtn) {
-					saveBtn.disabled = true;
-					saveBtn.setAttribute('aria-busy', 'true');
-				}
-				return Promise.resolve()
-					.then(work)
-					.catch(function (err) {
-						applyFieldErrors(mount, err && err.details, err && err.message);
-						toast(err.message || tr('Could not save settings. Check the fields and try again.'), true);
-					})
-					.finally(function () {
-						if (saveBtn) {
-							saveBtn.disabled = false;
-							saveBtn.removeAttribute('aria-busy');
-						}
-					});
+				return api('POST', url, payload).then(function () { toast(tr('Settings saved.')); })
+					.catch(function (err) { applyFieldErrors(mount, err.details, err.message); toast(err.message, true); })
+					.finally(function () { if (trigger) trigger.disabled = false; });
 			}
-
-			if (section === 'access') {
-				mount.appendChild(settingsPageSection('access', 'iv-access-title', accessKids.concat([
-					settingsFormActions(btn(tr('Save access'), {
-						primary: true,
-						className: 'iv-btn--touch',
-						onclick: function (ev) {
-							return withSaveBusy(ev, function () {
-								var accessPayload = {
-									accessRestrictionEnabled: restriction.checked,
-									allowedUsers: allowedUsersPicker.getIds(),
-									allowedGroups: allowedGroupsPicker.getIds(),
-								};
-								if (canEditAppAdmins) {
-									accessPayload.appAdmins = appAdminsPicker.getIds();
-								}
-								return api('POST', ctx.urls.api.configAccess, accessPayload).then(function () {
-									toast(tr('Access settings saved.'));
-								});
-							});
-						},
-					})),
-				])));
-			}
-
-			if (section === 'office') {
-				mount.appendChild(settingsPageSection('office', 'iv-office-title', withSettingsHowTo(ctx, 'office', [
-					settingsSrTitle('iv-office-title', tr('Office / storekeeper')),
-					pickerField(tr('Office users'), officeUsersPicker, { name: 'officeUsers' }),
-					pickerField(tr('Office groups'), officeGroupsPicker, { name: 'officeGroups' }),
+			if (section === 'stock') {
+				var neg = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-allow-negative', checked: cfg.allowNegativeStock ? '' : null});
+				mount.appendChild(settingsPageSection('stock', 'iv-stock-title', [
+					settingsSrTitle('iv-stock-title', tr('Stock policy')),
 					settingsSwitchField(neg, tr('Allow negative stock')),
-					settingsFormActions(btn(tr('Save office settings'), {
-						primary: true,
-						className: 'iv-btn--touch',
-						onclick: function (ev) {
-							return withSaveBusy(ev, function () {
-								return api('POST', ctx.urls.api.configOffice, {
-									officeUsers: officeUsersPicker.getIds(),
-									officeGroups: officeGroupsPicker.getIds(),
-									allowNegativeStock: neg.checked,
-								}).then(function () {
-									toast(tr('Office settings saved.'));
-								});
-							});
-						},
-					})),
-				])));
+					settingsFormActions(btn(tr('Save stock policy'), {primary: true, onclick: function (ev) {
+						return save(ctx.urls.api.configStock, {allowNegativeStock: neg.checked}, ev.currentTarget);
+					}})),
+				]));
 			}
-
 			if (section === 'notifications') {
-				mount.appendChild(settingsPageSection('notifications', 'iv-notify-title', withSettingsHowTo(ctx, 'notifications', [
+				var picker = createLocalOptionPicker({options: results[4].data.filter(function (m) {return m.status === 'accepted';}).map(function (m) {return {id: m.userId, label: m.displayName};}), initialIds: cfg.lowStockNotifyUsers || [], ariaLabel: tr('Notify members'), placeholder: tr('Search workspace members…')});
+				picker.reset(cfg.lowStockNotifyUsers || []);
+				var hint = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-reorder-hint', checked: cfg.locationReorderHintEnabled ? '' : null});
+				mount.appendChild(settingsPageSection('notifications', 'iv-notify-title', [
 					settingsSrTitle('iv-notify-title', tr('Low stock notifications')),
-					pickerField(tr('Notify users'), notifyUsersPicker, { name: 'lowStockNotifyUsers' }),
-					pickerField(tr('Notify groups'), notifyGroupsPicker, { name: 'lowStockNotifyGroups' }),
-					settingsSwitchField(
-						reorderHint,
-						tr('Also show low-stock hints per location, not just the total across all locations')
-					),
-					settingsFormActions(btn(tr('Save notification settings'), {
-						primary: true,
-						className: 'iv-btn--touch',
-						onclick: function (ev) {
-							return withSaveBusy(ev, function () {
-								return api('POST', ctx.urls.api.configNotify, {
-									lowStockNotifyUsers: notifyUsersPicker.getIds(),
-									lowStockNotifyGroups: notifyGroupsPicker.getIds(),
-									locationReorderHintEnabled: reorderHint.checked,
-								}).then(function () {
-									toast(tr('Notification settings saved.'));
-								});
-							});
-						},
-					})),
-				])));
+					pickerField(tr('Notify members'), picker),
+					el('p', {className: 'iv-field__hint', text: tr('Leave empty to notify the workspace owner and admins.')}),
+					settingsSwitchField(hint, tr('Also show low-stock hints per location, not just the total across all locations')),
+					settingsFormActions(btn(tr('Save notification settings'), {primary: true, onclick: function (ev) {
+						return save(ctx.urls.api.configNotify, {lowStockNotifyUsers: picker.getIds(), locationReorderHintEnabled: hint.checked}, ev.currentTarget);
+					}})),
+				]));
 			}
-
 			var fracEnabled = Number(cfg.qtyScale) === 3;
 			var fracKids = [
 				settingsSrTitle('iv-frac-title', tr('Fractional quantities')),
@@ -5056,6 +4763,8 @@
 				mount.appendChild(settingsPageSection('quantities', 'iv-frac-title', withSettingsHowTo(ctx, 'quantities', fracKids)));
 			}
 
+
+			if (section === 'location-access') {
 			var aclEnabled = el('input', {
 				type: 'checkbox',
 				className: 'iv-switch__input',
@@ -5085,7 +4794,7 @@
 				ariaLabel: tr('Scanner device to grant'),
 				placeholder: tr('Search scanner devices…'),
 				emptyLabel: tr('No scanner selected'),
-				options: licenseDevices.map(function (d) {
+				options: scanners.map(function (d) {
 					var label = (d.label || tr('Scanner')) + ' (#' + d.id + ')';
 					return { id: d.id, label: label };
 				}),
@@ -5116,7 +4825,7 @@
 				locLabelById[String(loc.id)] = loc.name + ' — ' + loc.code;
 			});
 			var deviceLabelById = {};
-			licenseDevices.forEach(function (d) {
+			scanners.forEach(function (d) {
 				deviceLabelById[String(d.id)] = (d.label || tr('Scanner')) + ' (#' + d.id + ')';
 			});
 
@@ -5253,6 +4962,10 @@
 				])));
 			}
 
+
+			}
+
+			if (section === 'connections') {
 			var maintToggle = el('input', {
 				type: 'checkbox',
 				className: 'iv-switch__input',
@@ -5336,312 +5049,8 @@
 				])));
 			}
 
-			if (section === 'product-lookup') {
-				var lookupToggle = el('input', {
-					type: 'checkbox',
-					className: 'iv-switch__input',
-					id: 'iv-product-lookup',
-					checked: cfg.productLookupEnabled ? '' : null,
-				});
-				var lookupAutofireToggle = el('input', {
-					type: 'checkbox',
-					className: 'iv-switch__input',
-					id: 'iv-product-lookup-autofire',
-					checked: cfg.productLookupAutofire ? '' : null,
-				});
-				var providerIds = Array.isArray(cfg.productLookupProviders) ? cfg.productLookupProviders : [];
-				var enabledProviders = Array.isArray(cfg.productLookupEnabledProviders)
-					? cfg.productLookupEnabledProviders
-					: providerIds;
-				var providerNames = {
-					openfoodfacts: 'Open Food Facts',
-					openbeautyfacts: 'Open Beauty Facts',
-					openpetfoodfacts: 'Open Pet Food Facts',
-					openproductsfacts: 'Open Products Facts',
-					upcitemdb: 'UPCitemdb',
-				};
-				// Server-supplied labels win when present (non-admins get []).
-				(Array.isArray(cfg.productLookupAvailable) ? cfg.productLookupAvailable : [])
-					.forEach(function (p) {
-						if (p && p.id) {
-							providerNames[p.id] = p.label || p.id;
-						}
-					});
-				var providerBoxes = providerIds.map(function (pid) {
-					var box = el('input', {
-						type: 'checkbox',
-						className: 'iv-checkbox__input',
-						id: 'iv-product-lookup-provider-' + pid,
-						'data-provider-id': pid,
-						checked: enabledProviders.indexOf(pid) !== -1 ? '' : null,
-					});
-					return box;
-				});
-				var providerKids = providerBoxes.map(function (box, i) {
-					var pid = providerIds[i];
-					return el('label', {
-						className: 'iv-checkbox',
-						for: 'iv-product-lookup-provider-' + pid,
-					}, [
-						box,
-						el('span', { className: 'iv-checkbox__label', text: providerNames[pid] || pid }),
-					]);
-				});
-				var lookupStats = cfg.productLookupStats || null;
-				var statsKids = [];
-				if (lookupStats && lookupStats.totals) {
-					statsKids.push(el('p', {
-						className: 'iv-muted',
-						text: tr('Lookups so far: {total} — found: {hits}, not found: {misses}, errors: {errors}, rate-limited: {limited}, saved by cache: {cache}', {
-							total: lookupStats.totals.lookups || 0,
-							hits: lookupStats.totals.hits || 0,
-							misses: lookupStats.totals.misses || 0,
-							errors: lookupStats.totals.errors || 0,
-							limited: lookupStats.totals.rateLimited || 0,
-							cache: lookupStats.totals.cacheHits || 0,
-						}),
-					}));
-					if (lookupStats.dailyBudget && Number(lookupStats.dailyBudget.limit) > 0) {
-						statsKids.push(el('p', {
-							className: 'iv-muted',
-							text: tr('Broad product database today: {used} of {limit} requests used.', {
-								used: lookupStats.dailyBudget.used || 0,
-								limit: lookupStats.dailyBudget.limit,
-							}),
-						}));
-					}
-				}
-				mount.appendChild(settingsPageSection('product-lookup', 'iv-product-lookup-title', withSettingsHowTo(ctx, 'product-lookup', [
-					settingsSrTitle('iv-product-lookup-title', tr('Online product lookup')),
-					el('div', {
-						className: 'iv-callout iv-callout--info',
-						role: 'status',
-					}, [
-						el('p', {
-							className: 'iv-callout__text',
-							text: tr('When enabled, scanning an unknown barcode asks free product databases (Open Food Facts and friends, plus a broad barcode catalog) for a name and description. Only the barcode is sent — never user, location or stock data.'),
-						}),
-					]),
-					settingsSwitchField(
-						lookupToggle,
-						tr('Look up unknown barcodes online'),
-						tr('Suggestions only fill empty fields in the item dialog — nothing is saved automatically.')
-					),
-					settingsSwitchField(
-						lookupAutofireToggle,
-						tr('Search automatically while typing'),
-						tr('When off, the lookup only runs when the "Look up product" button is pressed.')
-					),
-					providerKids.length > 0
-						? el('fieldset', { className: 'iv-fieldset' }, [
-							el('legend', { className: 'iv-fieldset__legend', text: tr('Product databases to query') }),
-							el('p', {
-								className: 'iv-field__hint',
-								text: tr('Sources are tried in order; the first match wins.'),
-							}),
-						].concat(providerKids))
-						: null,
-					settingsFormActions(btn(tr('Save lookup settings'), {
-						'data-iv-action': 'lookup-settings-save',
-						primary: true,
-						className: 'iv-btn--touch',
-						onclick: function () {
-							if (!ctx.urls.api.configProductLookup) {
-								toast(tr('Lookup settings are unavailable on this server.'), true);
-								return;
-							}
-							var chosen = providerBoxes
-								.filter(function (box) { return box.checked; })
-								.map(function (box) { return box.getAttribute('data-provider-id'); });
-							clearFieldErrors(mount);
-							api('POST', ctx.urls.api.configProductLookup, {
-								enabled: lookupToggle.checked,
-								autofire: lookupAutofireToggle.checked,
-								providers: chosen,
-							}).then(function () {
-								// Keep the page-shell flags in sync so open dialogs
-								// honor the new state without a reload.
-								ctx.productLookupEnabled = lookupToggle.checked;
-								ctx.productLookupAutofire = lookupAutofireToggle.checked;
-								ctx.root.setAttribute('data-iv-product-lookup', lookupToggle.checked ? '1' : '0');
-								ctx.root.setAttribute('data-iv-product-lookup-autofire', lookupAutofireToggle.checked ? '1' : '0');
-								toast(tr('Lookup settings saved.'));
-							}).catch(function (err) {
-								applyFieldErrors(mount, err && err.details, err && err.message);
-								toast(err.message, true);
-							});
-						},
-					})),
-				].concat(statsKids))));
+
 			}
-
-			var keyInput = el('textarea', {
-				className: 'iv-input',
-				rows: '3',
-				id: 'iv-license-key',
-				placeholder: 'IV2.…',
-				'aria-label': tr('License key'),
-			});
-			var stateText = lic.state
-				? (lic.state.customerId + ' · ' + lic.state.validUntil + (lic.state.valid ? ' · ' + tr('Valid') : ' · ' + tr('Expired')))
-				: tr('No license stored');
-			var seatUidPicker = createIdPicker({
-				kind: 'user',
-				multi: false,
-				searchUrls: directoryUrls,
-			});
-			var deviceLabel = el('input', {
-				type: 'text',
-				className: 'iv-input',
-				id: 'iv-device-label',
-				placeholder: tr('Scanner label'),
-				'aria-label': tr('Scanner label'),
-			});
-			var deviceCreateLocationPicker = createLocalOptionPicker({
-				rootId: 'iv-device-create-locs',
-				searchId: 'iv-device-create-loc-search',
-				ariaLabel: tr('Locations for new scanner (optional)'),
-				placeholder: tr('Search locations…'),
-				options: flangeLocations.map(function (loc) {
-					return { id: loc.id, label: loc.name + ' — ' + loc.code };
-				}),
-			});
-			var seatsHost = el('div', { className: 'iv-stack', id: 'iv-seats-list' });
-			var devicesHost = el('div', { className: 'iv-stack', id: 'iv-devices-list' });
-			var pairCodeHost = el('div', {
-				className: 'iv-pair-code-panel',
-				id: 'iv-pair-code-panel',
-				role: 'status',
-				'aria-live': 'polite',
-				hidden: '',
-			});
-
-			function deviceStateLabel(d) {
-				if (!d.active || d.state === 'inactive') return tr('Inactive');
-				if (d.state === 'paired') return tr('Paired');
-				if (d.state === 'expired') return tr('Expired pair code');
-				if (d.state === 'pending' || d.hasPendingPairCode) return tr('Pending pair code');
-				return tr('Empty slot');
-			}
-
-			function showPairCodeOnce(code) {
-				clear(pairCodeHost);
-				if (!code) {
-					pairCodeHost.setAttribute('hidden', '');
-					return;
-				}
-				pairCodeHost.removeAttribute('hidden');
-				pairCodeHost.appendChild(el('p', {
-					className: 'iv-pair-code-panel__lead',
-					text: tr('Copy this code now. It is shown only once.'),
-				}));
-				pairCodeHost.appendChild(el('p', {
-					className: 'iv-mono iv-pair-code-panel__code',
-					id: 'iv-pair-code-once',
-					text: code,
-					'aria-label': tr('Pairing code'),
-				}));
-				pairCodeHost.appendChild(btn(tr('Copy code'), {
-					primary: true,
-					className: 'iv-btn--touch',
-					onclick: function () {
-						if (navigator.clipboard && code) {
-							navigator.clipboard.writeText(code).then(function () {
-								toast(tr('Pairing code copied.'));
-							}).catch(function () {
-								toast(tr('Could not copy. Select the code manually.'), true);
-							});
-						} else {
-							toast(tr('Select the code manually to copy.'), true);
-						}
-					},
-				}));
-				try {
-					pairCodeHost.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-				} catch (e) { /* ignore */ }
-			}
-
-			function refreshSeatsAndDevices() {
-				return Promise.all([
-					api('GET', ctx.urls.api.licenseSeats + '?limit=100&offset=0'),
-					api('GET', ctx.urls.api.licenseDevices + '?limit=100&offset=0'),
-				]).then(function (lists) {
-					clear(seatsHost);
-					if (!lists[0].data.length) {
-						seatsHost.appendChild(el('p', { className: 'iv-muted', text: tr('No seats assigned yet.') }));
-					} else {
-						lists[0].data.forEach(function (s) {
-							var titleKids = [el('span', { className: 'iv-row__title', text: s.displayName || s.uid })];
-							if (s.withinLimit === false) {
-								titleKids.push(el('span', {
-									className: 'iv-chip iv-chip--over-limit',
-									text: tr('Over seat limit'),
-								}));
-							}
-							seatsHost.appendChild(el('div', { className: 'iv-row' }, [
-								el('div', { className: 'iv-row__main' }, titleKids),
-								btn(tr('Remove'), {
-									onclick: function () {
-										api('DELETE', ctx.urls.api.licenseSeats.replace(/\/?$/, '/') + encodeURIComponent(s.uid))
-											.then(function () {
-												toast(tr('Seat removed.'));
-												renderSettings(ctx);
-											})
-											.catch(function (err) { toast(err.message, true); });
-									},
-								}),
-							]));
-						});
-					}
-					clear(devicesHost);
-					if (!lists[1].data.length) {
-						devicesHost.appendChild(el('p', { className: 'iv-muted', text: tr('No device slots yet.') }));
-					} else {
-						lists[1].data.forEach(function (d) {
-							var actions = [];
-							if (d.active) {
-								actions.push(btn(tr('Regenerate code'), {
-									onclick: function (ev) {
-										var trigger = ev && ev.currentTarget ? ev.currentTarget : null;
-										dialog(tr('Regenerate the pairing code?'), [
-											el('p', { className: 'iv-muted', text: tr('The current code stops working immediately. Show the new one-time code on this device and pair it again.') }),
-										], function () {
-											return api('POST', ctx.urls.api.licenseDevices.replace(/\/?$/, '/') + d.id + '/pair-code')
-												.then(function (res) {
-													showPairCodeOnce(res.pairCode || '');
-													return refreshSeatsAndDevices();
-												});
-										}, tr('Regenerate'), { restoreFocusTo: trigger });
-									},
-								}));
-								actions.push(btn(tr('Deactivate'), {
-									onclick: function (ev) {
-										var trigger = ev && ev.currentTarget ? ev.currentTarget : null;
-										dialog(tr('Deactivate this device?'), [
-											el('p', { className: 'iv-muted', text: tr('The device slot is deactivated and its location access grants are removed. It can be reactivated later with a new pairing code.') }),
-										], function () {
-											return api('DELETE', ctx.urls.api.licenseDevices.replace(/\/?$/, '/') + d.id)
-												.then(function () {
-													toast(tr('Device deactivated.'));
-													renderSettings(ctx);
-												});
-										}, tr('Deactivate'), { restoreFocusTo: trigger });
-									},
-								}));
-							}
-							devicesHost.appendChild(el('div', { className: 'iv-row' }, [
-								el('div', { className: 'iv-row__main' }, [
-									el('span', { className: 'iv-row__title', text: d.label }),
-									el('span', { className: 'iv-muted', text: deviceStateLabel(d) }),
-								]),
-								el('div', { className: 'iv-row__actions' }, actions),
-							]));
-						});
-					}
-				});
-			}
-
-			
 			var requireAdjustReason = el('input', {
 				type: 'checkbox',
 				className: 'iv-switch__input',
@@ -5688,99 +5097,70 @@
 				])));
 			}
 
-			if (section === 'license') {
-				var licenseSection = settingsPageSection('license', 'iv-license-title', withSettingsHowTo(ctx, 'license', [
-					settingsSrTitle('iv-license-title', tr('Official mobile & scanner licenses')),
-					el('div', {
-						className: 'iv-license-status',
-						role: 'status',
-					}, [
-						el('p', { className: 'iv-license-status__state', text: stateText }),
-						el('p', {
-							className: 'iv-license-status__counts',
-							text: tr('Seats') + ': ' + lic.seats.assigned + ' / ' + lic.seats.limit
-								+ ' · ' + tr('Devices') + ': ' + lic.devices.active + ' / ' + lic.devices.limit,
-						}),
-					]),
-					field(tr('Paste IV2 key'), keyInput, { name: 'key' }),
-					settingsFormActions(btn(tr('Apply key'), {
-						primary: true,
-						className: 'iv-btn--touch',
-						onclick: function () {
-							api('POST', ctx.urls.api.license, { key: keyInput.value }).then(function () {
-								toast(tr('License applied.'));
-								renderSettings(ctx);
-							}).catch(function (err) { toast(err.message, true); });
-						},
-					})),
-					disclosureSection(tr('Mobile seats'), [
-						seatsHost,
-						pickerField(tr('Assign seat to user'), seatUidPicker, { name: 'uid' }),
-						btn(tr('Assign seat'), {
-							onclick: function () {
-								api('POST', ctx.urls.api.licenseSeats, { uid: seatUidPicker.getId() }).then(function () {
-									toast(tr('Seat assigned.'));
-									renderSettings(ctx);
-								}).catch(function (err) {
-									toast(err.message, true);
-									if (err && err.code === 'seat_limit_reached') {
-										toast(tr('All licensed seats are assigned. Ask about upgrading mobile seats.'), true);
-									}
-								});
-							},
-						}),
-					], { open: !!(lic.seats && lic.seats.assigned > 0) }),
-					disclosureSection(tr('Scanner device slots'), [
-						devicesHost,
-						field(tr('New device label'), deviceLabel, { name: 'label' }),
-						pickerField(tr('Locations for new scanner (optional)'), deviceCreateLocationPicker, { name: 'locationIds' }),
-						el('p', {
-							className: 'iv-field__hint',
-							text: tr('Optional. Bind this scanner to locations when you create it. You can also grant locations later under Location access.'),
-						}),
-						btn(tr('Create device slot'), {
-							onclick: function () {
-								var body = { label: deviceLabel.value.trim() };
-								var bindIds = deviceCreateLocationPicker.getIds().map(function (id) {
-									return Number(id);
-								}).filter(function (n) { return n > 0; });
-								if (bindIds.length) {
-									body.locationIds = bindIds;
-								}
-								api('POST', ctx.urls.api.licenseDevices, body).then(function (res) {
-									deviceLabel.value = '';
-									deviceCreateLocationPicker.reset();
-									showPairCodeOnce(res.pairCode || '');
-									return refreshSeatsAndDevices();
-								}).catch(function (err) {
-									toast(err.message, true);
-									if (err && err.code === 'device_limit_reached') {
-										toast(tr('All licensed device slots are used. Ask about upgrading scanner licenses.'), true);
-									}
-								});
-							},
-						}),
-						pairCodeHost,
-					], { open: !!(lic.devices && lic.devices.active > 0) }),
-					el('p', { className: 'iv-muted', text: tr('Pair shared scanners in the InventoryCheck mobile app (cold start or Settings). Device slots and pairing codes work here.') }),
-					el('p', null, [
-						el('a', {
-							href: 'mailto:info@software-by-design.de?subject=' + encodeURIComponent('InventoryCheck: Mobile / Scanner Lizenzen'),
-							className: 'button',
-							text: tr('Ask about mobile & scanner licenses'),
-						}),
-					]),
-				]));
-				licenseSection.id = 'iv-license';
-				mount.appendChild(licenseSection);
-				refreshSeatsAndDevices().catch(function (err) { toast(err.message, true); });
-			}
+
+			if (section === 'scanners') renderScanners(ctx, scanners);
 		}).catch(function (err) {
-			setBusy(mount, false);
-			clear(mount);
-			mount.appendChild(loadErrorPanel(err.message, function () { renderSettings(ctx); }));
-			toast(err.message, true);
+			setBusy(mount, false); clear(mount);
+			mount.appendChild(loadErrorPanel(err.message, function () {renderSettings(ctx);}));
 		});
+	}
+
+	function renderScanners(ctx, scanners) {
+		var host = el('section', {className: 'iv-section iv-card'});
+		var pairCode = el('p', {className: 'iv-pair-code-panel', role: 'status', hidden: ''});
+		function showCode(result) {pairCode.hidden = false; pairCode.textContent = tr('Copy this code now. It is shown only once.') + ' ' + result.pairCode;}
+		var label = el('input', {className: 'iv-input', maxlength: '255', required: '', placeholder: tr('Scanner label')});
+		host.appendChild(field(tr('Scanner label'), label));
+		host.appendChild(btn(tr('Create scanner'), {primary: true, onclick: function () {
+			return api('POST', ctx.urls.api.scanners, {label: label.value}).then(function (result) {
+				showCode(result); label.value = ''; list.appendChild(scannerRow(result.device));
+			}).catch(function (err) {toast(err.message, true);});
+		}}));
+		host.appendChild(pairCode);
+		var list = el('div', {className: 'iv-stack'});
+		function scannerRow(scanner) {
+			var row = el('div', {className: 'iv-row'}, [el('span', {text: scanner.label + ' · ' + tr(scanner.active ? scanner.state : 'Inactive')})]);
+			if (scanner.active) {
+				row.appendChild(btn(tr('New pairing code'), {onclick: function () {
+					return api('POST', entityUrl(ctx.urls.api.scanners, scanner.id) + '/pair-code').then(showCode).catch(function (err) {toast(err.message, true);});
+				}}));
+				row.appendChild(btn(tr('Deactivate'), {onclick: function () {
+					return api('DELETE', entityUrl(ctx.urls.api.scanners, scanner.id)).then(function () {row.remove();}).catch(function (err) {toast(err.message, true);});
+				}}));
+			}
+			return row;
+		}
+		scanners.forEach(function (scanner) {list.appendChild(scannerRow(scanner));});
+		host.appendChild(list); ctx.mount.appendChild(host);
+	}
+
+	function openAppSettings(ctx) {
+		api('GET', ctx.urls.api.appConfig).then(function (cfg) {
+			var enabled = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-app-lookup-enabled', checked: cfg.enabled ? '' : null});
+			var autofire = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-app-lookup-autofire', checked: cfg.autofire ? '' : null});
+			var providers = cfg.providers.map(function (provider) {
+				return {id: provider.id, label: provider.label, input: el('input', {type: 'checkbox', id: 'iv-app-provider-' + provider.id, checked: cfg.enabledProviders.includes(provider.id) ? '' : null})};
+			});
+			var sources = el('fieldset', {className: 'iv-fieldset'}, [el('legend', {text: tr('Product databases to query')})]);
+			providers.forEach(function (provider) {sources.appendChild(settingsSwitchField(provider.input, provider.label));});
+			var nodes = [
+				el('p', {text: tr('These settings apply to every workspace.')}),
+				el('h3', {text: tr('Online product lookup')}),
+				el('p', {className: 'iv-field__hint', text: tr('Only the barcode is sent to the selected databases. Inventory and account details stay on this server.')}),
+				settingsSwitchField(enabled, tr('Look up unknown barcodes online')),
+				settingsSwitchField(autofire, tr('Search automatically while typing')),
+				sources,
+			];
+			if (cfg.stats && cfg.stats.totals) nodes.push(el('p', {className: 'iv-muted', text: tr('Lookups: {count}', {count: cfg.stats.totals.lookups || 0})}));
+			dialog(tr('App settings'), nodes, function () {
+				return api('POST', ctx.urls.api.appConfig, {enabled: enabled.checked, autofire: autofire.checked, providers: providers.filter(function (p) {return p.input.checked;}).map(function (p) {return p.id;})}).then(function () {
+					ctx.productLookupEnabled = enabled.checked; ctx.productLookupAutofire = autofire.checked;
+					ctx.root.setAttribute('data-iv-product-lookup', enabled.checked ? '1' : '0');
+					ctx.root.setAttribute('data-iv-product-lookup-autofire', autofire.checked ? '1' : '0');
+					toast(tr('Settings saved.'));
+				});
+			}, tr('Save'));
+		}).catch(function (err) {toast(err.message, true);});
 	}
 
 	// ── Stocktake / cycle counts (Wave B1) ─────────────────────────────
@@ -6139,7 +5519,7 @@
 			));
 		}
 
-		if (!(ctx.isOffice || ctx.isAppAdmin)) {
+		if (ctx.workspaceRole === 'viewer' || !ctx.canWrite) {
 			denyNonOffice();
 			return;
 		}
@@ -6252,7 +5632,7 @@
 				mount.appendChild(emptyState(
 					tr('Add a location first, then start a stocktake.'),
 					tr('Add a warehouse or van to hold stock.'),
-					(ctx.isOffice || ctx.isAppAdmin) && ctx.urls && ctx.urls.pages && ctx.urls.pages.locations
+					(ctx.workspaceRole !== 'viewer' && ctx.canWrite) && ctx.urls && ctx.urls.pages && ctx.urls.pages.locations
 						? el('a', {
 							href: ctx.urls.pages.locations,
 							className: 'button primary',
@@ -6276,7 +5656,7 @@
 		setBusy(mount, true);
 		clear(mount);
 		clear(ctx.actions);
-		if (ctx.isOffice || ctx.isAppAdmin) {
+		if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 			ctx.actions.appendChild(btn(tr('New stocktake'), {
 							'data-iv-action': 'stocktake-new',
 				primary: true,
@@ -6291,7 +5671,7 @@
 			var locMap = indexById(results[1].data);
 			clear(mount);
 			setBusy(mount, false);
-			var canStart = ctx.isOffice || ctx.isAppAdmin;
+			var canStart = ctx.workspaceRole !== 'viewer' && ctx.canWrite;
 			mount.appendChild(stocktakeHowToCard(ctx, {
 				variant: canStart ? 'list' : 'count',
 				id: canStart ? 'iv-stocktake-howto-list' : 'iv-stocktake-howto-count',
@@ -6350,7 +5730,7 @@
 			clear(mount);
 			setBusy(mount, false);
 			clear(ctx.actions);
-			var canOperate = ctx.isOffice || ctx.isAppAdmin;
+			var canOperate = ctx.workspaceRole !== 'viewer' && ctx.canWrite;
 
 			function startCountingManual() {
 				api('POST', urlWithId(ctx.urls.api.cycleCountStart, id)).then(function () {
@@ -6769,10 +6149,167 @@
 		}
 	}
 
+	function workspaceRoleLabel(role) {
+		return ({owner: tr('Owner'), admin: tr('Admin'), editor: tr('Write'), viewer: tr('Read')})[role] || role;
+	}
+
+	// Only recipient-bound signed links may trigger an immediate CSRF-protected POST.
+	function workspaceInvitationIntent(rows, search) {
+		var params = new URLSearchParams(search);
+		var decision = params.get('decision');
+		var token = params.get('invitationToken');
+		if (['view', 'accept', 'decline'].indexOf(decision) === -1 || !token) return null;
+		var match = rows.find(function (row) {
+			return row.status === 'pending' && String(row.id) === params.get('invitationWorkspace')
+				&& row.invitationId != null && String(row.invitationId) === params.get('invitation');
+		});
+		return match ? { workspace: match, decision: decision, token: token } : null;
+	}
+
+	function finishWorkspaceInvitation(ctx) {
+		// Refresh Nextcloud's header and the workspace list together after processing an invitation.
+		window.location.replace(ctx.urls.pages.workspaces);
+	}
+
+	function respondToWorkspaceInvitation(ctx, workspace, accept) {
+		return api('POST', entityUrl(ctx.urls.api.workspaces, workspace.id) + '/invitation', {
+			accept: accept, invitationId: workspace.invitationId,
+		}).then(function () { finishWorkspaceInvitation(ctx); });
+	}
+
+	function renderWorkspaces(ctx) {
+		var mount = ctx.mount;
+		setBusy(mount, true);
+		api('GET', ctx.urls.api.workspaces).then(function (response) {
+			clear(mount);
+			clear(ctx.actions);
+			ctx.actions.appendChild(btn(tr('New workspace'), { primary: true, onclick: function () {
+				var name = el('input', { className: 'iv-input', required: '', maxlength: '255' });
+				dialog(tr('New workspace'), [field(tr('Workspace name'), name)], function () {
+					return api('POST', ctx.urls.api.workspaces, { name: name.value }).then(function () { renderWorkspaces(ctx); });
+				}, tr('Create workspace'));
+			} }));
+			var rows = response.data || [];
+			if (!rows.length) {
+				mount.appendChild(emptyState(tr('No workspaces yet'), tr('Create a workspace to start your inventory.'), null));
+			}
+			rows.forEach(function (workspace) {
+				var base = entityUrl(ctx.urls.api.workspaces, workspace.id);
+				var card = el('section', { className: 'iv-card iv-workspace-card', 'data-workspace-id': workspace.id });
+				card.appendChild(el('h2', { text: workspace.name }));
+				card.appendChild(el('p', { className: 'iv-muted', text: workspaceRoleLabel(workspace.role) }));
+				var actions = el('div', { className: 'iv-workspace-actions' });
+				card.appendChild(actions);
+				if (workspace.status === 'pending') {
+					card.appendChild(el('p', { text: tr('You have been invited to this workspace.') }));
+					[true, false].forEach(function (accept) {
+						actions.appendChild(btn(accept ? tr('Accept invitation') : tr('Decline invitation'), { primary: accept, onclick: function () {
+							respondToWorkspaceInvitation(ctx, workspace, accept).catch(function (err) { toast(err.message, true); });
+						} }));
+					});
+				} else {
+					actions.appendChild(el('a', { className: 'button primary', href: workspaceResourceUrl({ workspaceId: workspace.id }, ctx.urls.pages.dashboard), text: tr('Open workspace') }));
+					if (workspace.role === 'owner' || workspace.role === 'admin') {
+						actions.appendChild(el('a', {className: 'button', href: workspaceResourceUrl({workspaceId: workspace.id}, ctx.urls.settingsSections.members), text: tr('Workspace settings')}));
+					}
+					if (workspace.role === 'owner') {
+
+						actions.appendChild(btn(tr('Rename'), { onclick: function () {
+							var name = el('input', { className: 'iv-input', required: '', maxlength: '255', value: workspace.name });
+							dialog(tr('Rename workspace'), [field(tr('Workspace name'), name)], function () {
+								return api('PUT', base, { name: name.value }).then(function () { renderWorkspaces(ctx); });
+							}, tr('Save'));
+						} }));
+						actions.appendChild(btn(tr('Delete workspace'), { onclick: function () {
+							dialog(tr('Delete workspace'), [el('p', { text: tr('Permanently delete this workspace and all its items, locations, stock and history? This cannot be undone.') })], function () {
+								return api('DELETE', base).then(function () { renderWorkspaces(ctx); });
+							}, tr('Permanently delete'));
+						} }));
+					} else {
+						actions.appendChild(btn(tr('Leave workspace'), { onclick: function () {
+							dialog(tr('Leave workspace'), [el('p', { text: tr('You will need a new invitation to join again.') })], function () {
+								return api('DELETE', base + '/members', { userId: ctx.userId }).then(function () { renderWorkspaces(ctx); });
+							}, tr('Leave workspace'));
+						} }));
+					}
+				}
+				mount.appendChild(card);
+			});
+			setBusy(mount, false);
+			var params = new URLSearchParams(window.location.search);
+			if (params.has('invitation')) {
+				var intent = workspaceInvitationIntent(rows, window.location.search);
+				['invitation', 'invitationWorkspace', 'decision', 'invitationToken'].forEach(function (key) { params.delete(key); });
+				window.history.replaceState(null, '', window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash);
+				if (intent) {
+					setBusy(mount, true);
+					api('POST', entityUrl(ctx.urls.api.workspaces, intent.workspace.id) + '/invitation/notification', {
+						invitationId: intent.workspace.invitationId, decision: intent.decision, token: intent.token,
+					}).then(function () {
+						finishWorkspaceInvitation(ctx);
+					}).catch(function (err) {
+						setBusy(mount, false);
+						toast(err.message, true);
+					});
+				} else {
+					mount.prepend(el('p', { role: 'status', text: tr('This invitation is no longer available for this account. Check that you are signed in with the invited account.') }));
+				}
+			}
+		}).catch(function (err) {
+			clear(mount);
+			setBusy(mount, false);
+			mount.appendChild(loadErrorPanel(err.message, function () { renderWorkspaces(ctx); }));
+		});
+	}
+
+	function renderWorkspaceMembers(ctx, workspace, card) {
+		var base = entityUrl(ctx.urls.api.workspaces, workspace.id);
+		api('GET', base + '/members').then(function (response) {
+			var previous = card.querySelector('.iv-workspace-members');
+			if (previous) previous.remove();
+			var members = el('div', { className: 'iv-workspace-members' });
+			members.appendChild(el('h3', { text: tr('Members and invitations') }));
+			(response.data || []).forEach(function (member) {
+				var row = el('div', { className: 'iv-workspace-member' }, [
+					el('span', { text: member.displayName + ' · ' + workspaceRoleLabel(member.role) + (member.status === 'pending' ? ' · ' + tr('Invitation pending') : '') }),
+				]);
+				if (member.role !== 'owner') {
+					if (member.status === 'accepted') {
+						var role = el('select', {className: 'iv-input', 'aria-label': tr('Role for {name}', {name: member.displayName})}, ['viewer', 'editor', 'admin'].map(function (value) {return el('option', {value: value, text: workspaceRoleLabel(value)});}));
+						role.value = member.role;
+						role.addEventListener('change', function () {
+							role.disabled = true;
+							api('PUT', base + '/members', {userId: member.userId, role: role.value}).then(function () {window.location.reload();}).catch(function (err) {role.value = member.role; role.disabled = false; toast(err.message, true);});
+						});
+						row.appendChild(role);
+					}
+
+					row.appendChild(btn(member.status === 'pending' ? tr('Cancel invitation') : tr('Remove member'), { onclick: function () {
+						return api('DELETE', base + '/members', { userId: member.userId }).then(function () { renderWorkspaceMembers(ctx, workspace, card); }).catch(function (err) { toast(err.message, true); });
+					} }));
+				}
+				members.appendChild(row);
+			});
+			members.appendChild(btn(tr('Invite user'), { onclick: function () {
+				var picker = createIdPicker({ multi: false, searchUrls: { user: base + '/users' } });
+				var role = el('select', { className: 'iv-input' }, [el('option', { value: 'editor', text: tr('Write') }), el('option', { value: 'viewer', text: tr('Read') }), el('option', {value: 'admin', text: tr('Admin')})]);
+				dialog(tr('Invite user'), [pickerField(tr('User'), picker), field(tr('Role'), role),
+					el('p', { className: 'iv-muted', text: tr('Read members can browse. Write members can edit inventory. Admins also manage workspace settings and invitations.') }),
+					el('p', { className: 'iv-muted', text: tr('Invitations appear in Nextcloud notifications. Email delivery follows the recipient’s notification settings.') })], function () {
+					return api('POST', base + '/members', { userId: picker.getId(), role: role.value }).then(function () { renderWorkspaceMembers(ctx, workspace, card); });
+				}, tr('Send invitation'));
+			} }));
+			card.appendChild(members);
+		}).catch(function (err) { toast(err.message, true); });
+	}
+
 	function boot() {
 		var ctx = readShell();
 		if (!ctx || !ctx.mount) return;
+		var appSettings = document.querySelector('[data-iv-app-settings]');
+		if (appSettings) appSettings.addEventListener('click', function () {openAppSettings(ctx);});
 		switch (ctx.page) {
+			case 'workspaces': renderWorkspaces(ctx); break;
 			case 'dashboard': renderDashboard(ctx); break;
 			case 'items': renderItems(ctx); break;
 			case 'item-detail': renderItemDetail(ctx); break;

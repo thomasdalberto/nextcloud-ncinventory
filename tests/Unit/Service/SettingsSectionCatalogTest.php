@@ -13,7 +13,7 @@ final class SettingsSectionCatalogTest extends TestCase
 	public function testIsSectionStrict(): void
 	{
 		$cat = new SettingsSectionCatalog();
-		self::assertTrue($cat->isSection('access'));
+		self::assertTrue($cat->isSection('members'));
 		self::assertTrue($cat->isSection('location-access'));
 		self::assertFalse($cat->isSection('Access'));
 		self::assertFalse($cat->isSection('../etc'));

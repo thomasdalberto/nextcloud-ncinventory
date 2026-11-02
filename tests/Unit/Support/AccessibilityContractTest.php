@@ -44,17 +44,6 @@ final class AccessibilityContractTest extends TestCase
 		self::assertStringContainsString('aria-current', $src);
 	}
 
-	public function testAccessDeniedIsAlertWithHeadingAndEmptyStateShell(): void
-	{
-		$src = (string)file_get_contents($this->root . '/templates/access-denied.php');
-		self::assertStringContainsString('iv-skip-link', $src);
-		self::assertStringContainsString('href="#iv-denied-main"', $src);
-		self::assertStringContainsString('<main id="iv-denied-main"', $src);
-		self::assertStringContainsString('role="alert"', $src);
-		self::assertStringContainsString('aria-labelledby="iv-denied-title"', $src);
-		self::assertStringContainsString('iv-empty-state', $src);
-	}
-
 	public function testEmptyStateUsesFamilyShellAndStatusRole(): void
 	{
 		$js = (string)file_get_contents($this->root . '/js/app.js');

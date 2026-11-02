@@ -45,7 +45,7 @@ class DirectoryController extends Controller
 	#[NoAdminRequired]
 	public function searchUsers(): JSONResponse
 	{
-		$this->access->requireAppAdmin($this->access->currentUserId());
+		$this->access->requireWorkspaceAdmin($this->access->currentUserId());
 		$query = trim((string)$this->request->getParam('q', ''));
 		if (mb_strlen($query) < self::MIN_QUERY_LENGTH) {
 			return new JSONResponse(['users' => []]);
@@ -56,7 +56,7 @@ class DirectoryController extends Controller
 	#[NoAdminRequired]
 	public function searchGroups(): JSONResponse
 	{
-		$this->access->requireAppAdmin($this->access->currentUserId());
+		$this->access->requireWorkspaceAdmin($this->access->currentUserId());
 		$query = trim((string)$this->request->getParam('q', ''));
 		if (mb_strlen($query) < self::MIN_QUERY_LENGTH) {
 			return new JSONResponse(['groups' => []]);

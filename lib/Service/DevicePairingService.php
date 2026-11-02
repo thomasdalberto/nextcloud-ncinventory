@@ -7,7 +7,7 @@ namespace OCA\InventoryCheck\Service;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Db\ScanDevice;
 use OCA\InventoryCheck\Db\ScanDeviceMapper;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCP\IConfig;
 use OCP\IRequest;
@@ -34,7 +34,7 @@ class DevicePairingService
 	private const RATE_LOCK_PREFIX = 'inventorycheck/pair_rate/';
 
 	public function __construct(
-		private readonly LicenseService $license,
+		private readonly ScannerService $scanners,
 		private readonly ScanDeviceMapper $devices,
 		private readonly Clock $clock,
 		private readonly IConfig $config,
@@ -58,7 +58,7 @@ class DevicePairingService
 			throw new ValidationException('invalid_pair_code');
 		}
 
-		$hash = $this->license->hashSecret($code);
+		$hash = $this->scanners->hashSecret($code);
 		$now = $this->clock->now();
 		$match = $this->devices->findPendingByPairCodeHash($hash);
 		if ($match === null || !$match->getActive()) {
@@ -72,7 +72,7 @@ class DevicePairingService
 		}
 
 		$token = bin2hex(random_bytes(32));
-		$tokenHash = $this->license->hashSecret($token);
+		$tokenHash = $this->scanners->hashSecret($token);
 		$claimed = $this->devices->claimPairing(
 			(int)$match->getId(),
 			$hash,
@@ -105,7 +105,7 @@ class DevicePairingService
 	{
 		$this->withRateLock(function (): void {
 			if ($this->currentFailureCount() >= self::RATE_MAX) {
-				throw new MobileGateException('rate_limited');
+				throw new MobileRequestException('rate_limited');
 			}
 		});
 	}
@@ -126,7 +126,7 @@ class DevicePairingService
 			}
 			$count = (int)($data['count'] ?? 0);
 			if ($count >= self::RATE_MAX) {
-				throw new MobileGateException('rate_limited');
+				throw new MobileRequestException('rate_limited');
 			}
 			$data['count'] = $count + 1;
 			$this->config->setAppValue(Application::APP_ID, $key, json_encode($data));
@@ -186,7 +186,7 @@ class DevicePairingService
 			} catch (LockedException) {
 				// Contended lock ≠ rate limit; retry briefly so honest clients are not 429'd.
 				if (++$attempts >= 40) {
-					throw new MobileGateException('rate_limited');
+					throw new MobileRequestException('rate_limited');
 				}
 				usleep(25_000);
 			}

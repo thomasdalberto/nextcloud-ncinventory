@@ -41,15 +41,16 @@ final class UpgradeBackupCatalog
 		'iv_cc_line',
 		'iv_inv_push',
 		'iv_items',
-		'iv_license_state',
 		'iv_loc_acl',
 		'iv_loc_fav',
 		'iv_locations',
-		'iv_mobile_seats',
 		'iv_movements',
 		'iv_notif_log',
 		'iv_scan_devices',
 		'iv_scan_idem',
+		'iv_workspaces',
+		'iv_ws_members',
+		'iv_ws_settings',
 	];
 
 	/** @var list<string> */
@@ -59,15 +60,16 @@ final class UpgradeBackupCatalog
 		'iv_cc_line',
 		'iv_inv_push',
 		'iv_items',
-		'iv_license_state',
 		'iv_loc_acl',
 		'iv_loc_fav',
 		'iv_locations',
-		'iv_mobile_seats',
 		'iv_movements',
 		'iv_notif_log',
 		'iv_scan_devices',
 		'iv_scan_idem',
+		'iv_workspaces',
+		'iv_ws_members',
+		'iv_ws_settings',
 	];
 
 	public static function isBackupTable(string $table): bool

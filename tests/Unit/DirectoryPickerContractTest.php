@@ -71,13 +71,11 @@ final class DirectoryPickerContractTest extends TestCase
 	{
 		$js = $this->appJs();
 		self::assertSame(
-			10,
+			9,
 			substr_count($js, 'createIdPicker('),
-			'Expected 1 factory function definition + 9 call sites: officeUsers, officeGroups, '
+			'Expected 1 factory function definition + 8 call sites: workspace invite, '
 				. 'allowedUsers, allowedGroups, appAdmins, notifyUsers, notifyGroups, ACL subject, mobile seat.',
 		);
-		self::assertStringContainsString('officeUsersPicker = createIdPicker(', $js);
-		self::assertStringContainsString('officeGroupsPicker = createIdPicker(', $js);
 		self::assertStringContainsString('allowedUsersPicker = createIdPicker(', $js);
 		self::assertStringContainsString('allowedGroupsPicker = createIdPicker(', $js);
 		self::assertStringContainsString('appAdminsPicker = createIdPicker(', $js);

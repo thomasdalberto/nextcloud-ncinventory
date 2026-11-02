@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<InvoicePush>
+ * @extends WorkspaceScopedMapper<InvoicePush>
  */
-class InvoicePushMapper extends QBMapper
+class InvoicePushMapper extends WorkspaceScopedMapper
 {
 	public const TABLE = 'iv_inv_push';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, InvoicePush::class);
+		parent::__construct($db, self::TABLE, InvoicePush::class, $workspace);
 	}
 
 	public function findByIssueRef(string $issueRef): ?InvoicePush
@@ -112,6 +112,7 @@ class InvoicePushMapper extends QBMapper
 				IQueryBuilder::PARAM_STR_ARRAY
 			)))
 			->andWhere($qb->expr()->lt('attempts', $qb->createNamedParameter($maxAttempts, IQueryBuilder::PARAM_INT)));
+		$this->workspace->apply($qb);
 		return (int) $qb->executeQuery()->fetchOne();
 	}
 }

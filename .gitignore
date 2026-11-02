@@ -1,6 +1,8 @@
 # Dependencies
 /vendor/
 /node_modules/
+/.tools/
+/dev/.env
 
 # PHPUnit / coverage
 .phpunit.result.cache

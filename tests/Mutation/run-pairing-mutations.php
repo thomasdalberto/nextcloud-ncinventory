@@ -29,8 +29,8 @@ runMutations(dirname(__DIR__, 2), 'DevicePairingServiceTest', [
 	[
 		'name' => 'record-skips-recheck',
 		'file' => $file,
-		'search' => "if (\$count >= self::RATE_MAX) {\n\t\t\t\tthrow new MobileGateException('rate_limited');\n\t\t\t}\n\t\t\t\$data['count'] = \$count + 1;",
-		'replace' => "if (false && \$count >= self::RATE_MAX) {\n\t\t\t\tthrow new MobileGateException('rate_limited');\n\t\t\t}\n\t\t\t\$data['count'] = \$count + 1;",
+		'search' => "if (\$count >= self::RATE_MAX) {\n\t\t\t\tthrow new MobileRequestException('rate_limited');\n\t\t\t}\n\t\t\t\$data['count'] = \$count + 1;",
+		'replace' => "if (false && \$count >= self::RATE_MAX) {\n\t\t\t\tthrow new MobileRequestException('rate_limited');\n\t\t\t}\n\t\t\t\$data['count'] = \$count + 1;",
 	],
 	[
 		'name' => 'rate-bucket-ignores-ip',

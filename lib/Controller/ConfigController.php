@@ -19,19 +19,13 @@ use OCA\InventoryCheck\Service\ReasonCodes;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IConfig;
-use OCP\IGroupManager;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
+use OCA\InventoryCheck\Service\WorkspaceService;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\IRequest;
-use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 
-/**
- * Access / office policy (P6). Unknown user/group ids → 422 so typos never
- * silently lock people out when restriction is enabled (sibling MN pattern).
- *
- * Writes are validate-then-commit: every present list is checked before any
- * appconfig key is mutated, so a bad group cannot leave a half-applied user list.
- */
+/** Settings for the selected workspace; all writes require its Admin role. */
 class ConfigController extends Controller
 {
 	use PolicyAuditTrait;
@@ -39,78 +33,82 @@ class ConfigController extends Controller
 	public function __construct(
 		IRequest $request,
 		private readonly AccessControlService $access,
-		private readonly IUserManager $userManager,
-		private readonly IGroupManager $groupManager,
 		private readonly LowStockService $lowStock,
 		private readonly QtyScaleService $qtyScaleService,
 		private readonly LocationAclService $locationAcl,
 		private readonly ProductLookupService $productLookup,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
+		private readonly WorkspaceService $workspaces,
+		private readonly WorkspaceContext $workspace,
 		private readonly LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
+
 	#[NoAdminRequired]
 	public function index(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$isAppAdmin = $this->access->isAppAdmin($uid);
-		$isSystemAdmin = $this->access->isSystemAdmin($uid);
 		return new JSONResponse([
-			'isAppAdmin' => $isAppAdmin,
-			'isSystemAdmin' => $isSystemAdmin,
-			'isOffice' => $this->access->isOffice($uid),
+			'isWorkspaceAdmin' => $this->access->isWorkspaceAdmin($uid),
+			'canWrite' => $this->access->canWrite($uid),
 			'allowNegativeStock' => $this->access->allowNegativeStock(),
-			'accessRestrictionEnabled' => $this->access->isAccessRestrictionEnabled(),
-			// L1 sees the list (IMPLEMENTATION §2.1) but only L0 may rewrite it (saveAccess).
-			'appAdmins' => $isAppAdmin
-				? $this->access->getJsonIdList(AccessControlService::KEY_APP_ADMINS)
-				: [],
-			'allowedUsers' => $isAppAdmin
-				? $this->access->getJsonIdList(AccessControlService::KEY_ACCESS_ALLOWED_USER_IDS)
-				: [],
-			'allowedGroups' => $isAppAdmin
-				? $this->access->getJsonIdList(AccessControlService::KEY_ACCESS_ALLOWED_GROUP_IDS)
-				: [],
-			'officeUsers' => $isAppAdmin
-				? $this->access->getJsonIdList(AccessControlService::KEY_OFFICE_USER_IDS)
-				: [],
-			'officeGroups' => $isAppAdmin
-				? $this->access->getJsonIdList(AccessControlService::KEY_OFFICE_GROUP_IDS)
-				: [],
-			'lowStockNotifyUsers' => $isAppAdmin
-				? $this->access->getJsonIdList(LowStockNotifyService::KEY_NOTIFY_USER_IDS)
-				: [],
-			'lowStockNotifyGroups' => $isAppAdmin
-				? $this->access->getJsonIdList(LowStockNotifyService::KEY_NOTIFY_GROUP_IDS)
-				: [],
+			'lowStockNotifyUsers' => $this->access->isWorkspaceAdmin($uid) ? $this->settings->getList(LowStockNotifyService::KEY_NOTIFY_USER_IDS) : [],
 			'locationReorderHintEnabled' => $this->lowStock->isPerLocationHintEnabled(),
-			'qtyScale' => QtyScale::current($this->config),
+			'qtyScale' => QtyScale::current($this->settings),
 			'locationAclEnabled' => $this->locationAcl->isEnabled(),
-			'requireAdjustReason' => ReasonCodes::isRequired($this->config),
-			'requireLocationScan' => LocationScanPolicy::isRequired($this->config),
+			'requireAdjustReason' => ReasonCodes::isRequired($this->settings),
+			'requireLocationScan' => LocationScanPolicy::isRequired($this->settings),
 			'productLookupEnabled' => $this->productLookup->isEnabled(),
 			'productLookupAutofire' => $this->productLookup->isAutofire(),
-			'productLookupProviders' => $this->productLookup->providerIds(),
-			'productLookupEnabledProviders' => $this->productLookup->enabledProviderIds(),
-			'productLookupAvailable' => $isAppAdmin ? $this->productLookup->availableProviders() : [],
-			'productLookupStats' => $isAppAdmin ? $this->productLookup->stats() : null,
 		]);
 	}
 
-	/**
-	 * C1: one-way opt-in to fractional (3-decimal) quantities. Enable-only —
-	 * there is no disable endpoint, the rescale is irreversible.
-	 */
+	#[NoAdminRequired]
+	public function saveStock(): JSONResponse
+	{
+		$uid = $this->access->currentUserId();
+		$this->access->requireWorkspaceAdmin($uid);
+		$this->access->setAllowNegativeStock(BoolParam::parse($this->request->getParam('allowNegativeStock'), 'allowNegativeStock'));
+		$this->auditPolicyChange($uid, 'stock_policy_saved', ['workspaceId' => $this->workspace->id()]);
+		return $this->index();
+	}
+
+	#[NoAdminRequired]
+	public function saveNotify(): JSONResponse
+	{
+		$uid = $this->access->currentUserId();
+		$this->access->requireWorkspaceAdmin($uid);
+		$p = $this->request->getParams();
+		$users = $p['lowStockNotifyUsers'] ?? [];
+		if (!is_array($users)) { throw new ValidationException('validation_failed'); }
+		$members = array_column(array_filter($this->workspaces->members($uid, $this->workspace->id()),
+			static fn (array $m): bool => $m['status'] === 'accepted'), 'userId');
+		foreach ($users as $user) {
+			if (!is_string($user) || !in_array($user, $members, true)) {
+				throw new ValidationException('validation_failed', '', [['field' => 'lowStockNotifyUsers', 'code' => 'unknown_workspace_member']]);
+			}
+		}
+		$hint = $this->parseBool($p['locationReorderHintEnabled'] ?? false, 'locationReorderHintEnabled');
+		$this->settings->setList(LowStockNotifyService::KEY_NOTIFY_USER_IDS, $users);
+		$this->lowStock->setPerLocationHintEnabled($hint);
+		$this->auditPolicyChange($uid, 'notify_policy_saved', ['workspaceId' => $this->workspace->id()]);
+		return $this->index();
+	}
+
+	private function parseBool(mixed $value, string $field): bool
+	{
+		return BoolParam::parse($value, $field);
+	}
 	#[NoAdminRequired]
 	public function saveFractional(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		$result = $this->qtyScaleService->enableFractional();
 		$this->auditPolicyChange($uid, 'qty_scale_fractional_enabled');
-		return new JSONResponse(array_merge($result, ['qtyScale' => QtyScale::current($this->config)]));
+		return new JSONResponse(array_merge($result, ['qtyScale' => QtyScale::current($this->settings)]));
 	}
 
 	/** Wave D3/D8 policies */
@@ -118,18 +116,18 @@ class ConfigController extends Controller
 	public function saveWaveD(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		$p = $this->request->getParams();
 		if (array_key_exists('requireAdjustReason', $p)) {
-			ReasonCodes::setRequired($this->config, $this->parseBool($p['requireAdjustReason'], 'requireAdjustReason'));
+			ReasonCodes::setRequired($this->settings, $this->parseBool($p['requireAdjustReason'], 'requireAdjustReason'));
 		}
 		if (array_key_exists('requireLocationScan', $p)) {
-			LocationScanPolicy::setRequired($this->config, $this->parseBool($p['requireLocationScan'], 'requireLocationScan'));
+			LocationScanPolicy::setRequired($this->settings, $this->parseBool($p['requireLocationScan'], 'requireLocationScan'));
 		}
 		if (array_key_exists('requireAdjustReason', $p) || array_key_exists('requireLocationScan', $p)) {
 			$this->auditPolicyChange($uid, 'wave_d_policy_saved', [
-				'requireAdjustReason' => ReasonCodes::isRequired($this->config),
-				'requireLocationScan' => LocationScanPolicy::isRequired($this->config),
+				'requireAdjustReason' => ReasonCodes::isRequired($this->settings),
+				'requireLocationScan' => LocationScanPolicy::isRequired($this->settings),
 			]);
 		}
 		return $this->index();
@@ -142,15 +140,11 @@ class ConfigController extends Controller
 		return new JSONResponse(['data' => ReasonCodes::catalog()]);
 	}
 
-	/**
-	 * C3: per-location ACL. App-admin only; GET lists every assignment,
-	 * PUT replaces the full assignment for one subject (validate-then-commit).
-	 */
 	#[NoAdminRequired]
 	public function locationAcl(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		return new JSONResponse([
 			'enabled' => $this->locationAcl->isEnabled(),
 			'devicesStrict' => $this->locationAcl->isDevicesStrict(),
@@ -162,7 +156,7 @@ class ConfigController extends Controller
 	public function saveLocationAcl(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		$p = $this->request->getParams();
 
 		// Phase 1 — parse/validate only (no writes). Writing `enabled` before a
@@ -218,269 +212,4 @@ class ConfigController extends Controller
 		return $this->locationAcl();
 	}
 
-	#[NoAdminRequired]
-	public function saveAccess(): JSONResponse
-	{
-		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
-		$p = $this->request->getParams();
-
-		// Phase 1 — validate everything that will be written (no side effects).
-		$restriction = array_key_exists('accessRestrictionEnabled', $p)
-			? $this->parseBool($p['accessRestrictionEnabled'], 'accessRestrictionEnabled')
-			: null;
-		$allowedUsers = array_key_exists('allowedUsers', $p)
-			? $this->validatedUserIds($p['allowedUsers'], 'allowedUsers')
-			: null;
-		$allowedGroups = array_key_exists('allowedGroups', $p)
-			? $this->validatedGroupIds($p['allowedGroups'], 'allowedGroups')
-			: null;
-		// Only Nextcloud system admins (L0) may rewrite the Dedicated App Admin list
-		// (SPEC §ACL / portfolio privilege boundary). L1 sees the list but cannot escalate.
-		$appAdmins = null;
-		if (array_key_exists('appAdmins', $p) && $this->access->isSystemAdmin($uid)) {
-			$appAdmins = $this->validatedUserIds($p['appAdmins'], 'appAdmins');
-		}
-
-		// Fail closed: restriction with empty allowlists locks every non-admin out.
-		$effectiveRestriction = $restriction ?? $this->access->isAccessRestrictionEnabled();
-		$effectiveUsers = $allowedUsers ?? $this->access->getJsonIdList(AccessControlService::KEY_ACCESS_ALLOWED_USER_IDS);
-		$effectiveGroups = $allowedGroups ?? $this->access->getJsonIdList(AccessControlService::KEY_ACCESS_ALLOWED_GROUP_IDS);
-		if ($effectiveRestriction && $effectiveUsers === [] && $effectiveGroups === []) {
-			throw new ValidationException(
-				'access_allowlist_required',
-				'Access restriction requires at least one allowed user or group.',
-				[['field' => 'allowedUsers', 'code' => 'access_allowlist_required']],
-			);
-		}
-
-		// Phase 2 — commit only after all validations succeeded.
-		if ($restriction !== null) {
-			$this->access->setAccessRestrictionEnabled($restriction);
-		}
-		if ($allowedUsers !== null) {
-			$this->access->setJsonIdList(AccessControlService::KEY_ACCESS_ALLOWED_USER_IDS, $allowedUsers);
-		}
-		if ($allowedGroups !== null) {
-			$this->access->setJsonIdList(AccessControlService::KEY_ACCESS_ALLOWED_GROUP_IDS, $allowedGroups);
-		}
-		if ($appAdmins !== null) {
-			$this->access->setJsonIdList(AccessControlService::KEY_APP_ADMINS, $appAdmins);
-		}
-
-		if ($restriction !== null || $allowedUsers !== null || $allowedGroups !== null || $appAdmins !== null) {
-			$this->auditPolicyChange($uid, 'access_policy_saved', [
-				'accessRestrictionEnabled' => $restriction,
-				'allowedUsers' => $allowedUsers !== null ? count($allowedUsers) : null,
-				'allowedGroups' => $allowedGroups !== null ? count($allowedGroups) : null,
-				'appAdmins' => $appAdmins !== null ? count($appAdmins) : null,
-			]);
-		}
-		return $this->index();
-	}
-
-	#[NoAdminRequired]
-	public function saveOffice(): JSONResponse
-	{
-		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
-		$p = $this->request->getParams();
-
-		$officeUsers = array_key_exists('officeUsers', $p)
-			? $this->validatedUserIds($p['officeUsers'], 'officeUsers')
-			: null;
-		$officeGroups = array_key_exists('officeGroups', $p)
-			? $this->validatedGroupIds($p['officeGroups'], 'officeGroups')
-			: null;
-		$allowNegative = array_key_exists('allowNegativeStock', $p)
-			? $this->parseBool($p['allowNegativeStock'], 'allowNegativeStock')
-			: null;
-
-		if ($officeUsers !== null) {
-			$this->access->setJsonIdList(AccessControlService::KEY_OFFICE_USER_IDS, $officeUsers);
-		}
-		if ($officeGroups !== null) {
-			$this->access->setJsonIdList(AccessControlService::KEY_OFFICE_GROUP_IDS, $officeGroups);
-		}
-		if ($allowNegative !== null) {
-			$this->access->setAllowNegativeStock($allowNegative);
-		}
-
-		if ($officeUsers !== null || $officeGroups !== null || $allowNegative !== null) {
-			$this->auditPolicyChange($uid, 'office_policy_saved', [
-				'officeUsers' => $officeUsers !== null ? count($officeUsers) : null,
-				'officeGroups' => $officeGroups !== null ? count($officeGroups) : null,
-				'allowNegativeStock' => $allowNegative,
-			]);
-		}
-		return $this->index();
-	}
-
-	/**
-	 * Wave A3 / B3: low-stock notify recipients and the per-location reorder
-	 * hint toggle. App-admin only, same validate-then-commit shape as
-	 * {@see saveAccess()} / {@see saveOffice()}.
-	 */
-	#[NoAdminRequired]
-	public function saveNotify(): JSONResponse
-	{
-		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
-		$p = $this->request->getParams();
-
-		$notifyUsers = array_key_exists('lowStockNotifyUsers', $p)
-			? $this->validatedUserIds($p['lowStockNotifyUsers'], 'lowStockNotifyUsers')
-			: null;
-		$notifyGroups = array_key_exists('lowStockNotifyGroups', $p)
-			? $this->validatedGroupIds($p['lowStockNotifyGroups'], 'lowStockNotifyGroups')
-			: null;
-		$reorderHint = array_key_exists('locationReorderHintEnabled', $p)
-			? $this->parseBool($p['locationReorderHintEnabled'], 'locationReorderHintEnabled')
-			: null;
-
-		if ($notifyUsers !== null) {
-			$this->access->setJsonIdList(LowStockNotifyService::KEY_NOTIFY_USER_IDS, $notifyUsers);
-		}
-		if ($notifyGroups !== null) {
-			$this->access->setJsonIdList(LowStockNotifyService::KEY_NOTIFY_GROUP_IDS, $notifyGroups);
-		}
-		if ($reorderHint !== null) {
-			$this->lowStock->setPerLocationHintEnabled($reorderHint);
-		}
-
-		if ($notifyUsers !== null || $notifyGroups !== null || $reorderHint !== null) {
-			$this->auditPolicyChange($uid, 'notify_policy_saved', [
-				'notifyUsers' => $notifyUsers !== null ? count($notifyUsers) : null,
-				'notifyGroups' => $notifyGroups !== null ? count($notifyGroups) : null,
-				'locationReorderHintEnabled' => $reorderHint,
-			]);
-		}
-		return $this->index();
-	}
-
-	/**
-	 * Online product lookup: single admin opt-in gate for all outbound
-	 * barcode lookups (web dialog + companion). App-admin only; audited
-	 * like every other policy change.
-	 */
-	#[NoAdminRequired]
-	public function saveProductLookup(): JSONResponse
-	{
-		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
-		$p = $this->request->getParams();
-
-		$enabled = array_key_exists('enabled', $p)
-			? $this->parseBool($p['enabled'], 'enabled')
-			: null;
-		$autofire = array_key_exists('autofire', $p)
-			? $this->parseBool($p['autofire'], 'autofire')
-			: null;
-		$providers = array_key_exists('providers', $p)
-			? $this->validatedProviderIds($p['providers'])
-			: null;
-		if ($enabled !== null) {
-			$this->productLookup->setEnabled($enabled);
-		}
-		if ($autofire !== null) {
-			$this->productLookup->setAutofire($autofire);
-		}
-		if ($providers !== null) {
-			$this->productLookup->setEnabledProviders($providers);
-		}
-		if ($enabled !== null || $autofire !== null || $providers !== null) {
-			$this->auditPolicyChange($uid, 'product_lookup_saved', [
-				'enabled' => $enabled,
-				'autofire' => $autofire,
-				'providers' => $providers !== null ? count($providers) : null,
-			]);
-		}
-		return $this->index();
-	}
-
-	/**
-	 * Accept JSON booleans and the appconfig-style 0/1 wire forms.
-	 * Never use bare `(bool)$value` — in PHP `(bool)'false'` is true.
-	 */
-	private function parseBool(mixed $value, string $field): bool
-	{
-		return BoolParam::parse($value, $field);
-	}
-
-	/**
-	 * @return list<string>
-	 */
-	private function validatedUserIds(mixed $value, string $field): array
-	{
-		$ids = $this->stringList($value, $field);
-		foreach ($ids as $userId) {
-			if (!$this->userManager->userExists($userId)) {
-				throw new ValidationException('unknown_user', 'Unknown user: ' . $userId, [
-					['field' => $field, 'code' => 'unknown_user'],
-				]);
-			}
-		}
-		return $ids;
-	}
-
-	/**
-	 * @return list<string>
-	 */
-	private function validatedGroupIds(mixed $value, string $field): array
-	{
-		$ids = $this->stringList($value, $field);
-		foreach ($ids as $gid) {
-			if (!$this->groupManager->groupExists($gid)) {
-				throw new ValidationException('unknown_group', 'Unknown group: ' . $gid, [
-					['field' => $field, 'code' => 'unknown_group'],
-				]);
-			}
-		}
-		return $ids;
-	}
-
-	/**
-	 * @return list<string>
-	 */
-	private function stringList(mixed $value, string $field): array
-	{
-		if (!is_array($value)) {
-			throw new ValidationException('validation_failed', $field . ' must be an array of ids.', [
-				['field' => $field, 'code' => 'invalid_type'],
-			]);
-		}
-		$out = [];
-		foreach ($value as $id) {
-			if (!is_string($id) && !is_int($id)) {
-				throw new ValidationException('validation_failed', $field . ' must contain strings only.', [
-					['field' => $field, 'code' => 'invalid_type'],
-				]);
-			}
-			$id = trim((string)$id);
-			if ($id !== '') {
-				$out[] = $id;
-			}
-		}
-		return array_values(array_unique($out));
-	}
-
-	/**
-	 * Provider ids are a closed set — anything else is rejected, not silently
-	 * dropped, so a typo can never narrow the cascade without the admin seeing it.
-	 *
-	 * @return list<string>
-	 */
-	private function validatedProviderIds(mixed $value): array
-	{
-		$ids = $this->stringList($value, 'providers');
-		$known = $this->productLookup->providerIds();
-		foreach ($ids as $id) {
-			if (!in_array($id, $known, true)) {
-				throw new ValidationException('validation_failed', 'Unknown product lookup source: ' . $id, [
-					['field' => 'providers', 'code' => 'unknown_provider'],
-				]);
-			}
-		}
-		return $ids;
-	}
 }

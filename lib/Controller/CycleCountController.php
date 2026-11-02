@@ -12,7 +12,7 @@ use OCA\InventoryCheck\Service\QtyScale;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 
 /**
@@ -29,7 +29,7 @@ class CycleCountController extends Controller
 		IRequest $request,
 		private readonly CycleCountService $cycles,
 		private readonly AccessControlService $access,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -83,9 +83,9 @@ class CycleCountController extends Controller
 		$line = $this->cycles->setCount(
 			$this->access->currentUserId(),
 			$lineId,
-			QtyScale::toStorage($this->config, $p['qtyCounted'] ?? 0),
+			QtyScale::toStorage($this->settings, $p['qtyCounted'] ?? 0),
 		);
-		return new JSONResponse(QtyScale::formatCycleLine($line, $this->config));
+		return new JSONResponse(QtyScale::formatCycleLine($line, $this->settings));
 	}
 
 	#[NoAdminRequired]
@@ -109,7 +109,7 @@ class CycleCountController extends Controller
 	{
 		if (isset($campaign['lines']) && is_array($campaign['lines'])) {
 			$campaign['lines'] = array_map(
-				fn (array $line) => QtyScale::formatCycleLine($line, $this->config),
+				fn (array $line) => QtyScale::formatCycleLine($line, $this->settings),
 				$campaign['lines'],
 			);
 		}

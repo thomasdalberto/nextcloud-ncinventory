@@ -18,7 +18,7 @@ runMutations(dirname(__DIR__, 2), 'MovementLockingProtocolTest|LocationScanPolic
 	[
 		'name' => 'receive-office-gate-dropped',
 		'file' => $movement,
-		'search' => "\$this->access->requireOffice(\$actorUid);\n\t\t\$this->assertLocationAccess(\$actorUid, \$locationId);\n\t\treturn \$this->postSingle(\$actorUid, 'receive', \$itemId, \$locationId, \$qty, \$reason, \$lotCode, \$notifyLowStock);",
+		'search' => "\$this->access->requireWrite(\$actorUid);\n\t\t\$this->assertLocationAccess(\$actorUid, \$locationId);\n\t\treturn \$this->postSingle(\$actorUid, 'receive', \$itemId, \$locationId, \$qty, \$reason, \$lotCode, \$notifyLowStock);",
 		'replace' => "\$this->assertLocationAccess(\$actorUid, \$locationId);\n\t\treturn \$this->postSingle(\$actorUid, 'receive', \$itemId, \$locationId, \$qty, \$reason, \$lotCode, \$notifyLowStock);",
 	],
 	[
@@ -90,7 +90,7 @@ runMutations(dirname(__DIR__, 2), 'MovementLockingProtocolTest|LocationScanPolic
 	[
 		'name' => 'issue-with-ref-office-gate-dropped',
 		'file' => $movement,
-		'search' => "\$this->access->requireOffice(\$actorUid);\n\t\t\$this->assertLocationAccess(\$actorUid, \$locationId);\n\t\t\$refType = CodeRules::trim(\$refType);",
+		'search' => "\$this->access->requireWrite(\$actorUid);\n\t\t\$this->assertLocationAccess(\$actorUid, \$locationId);\n\t\t\$refType = CodeRules::trim(\$refType);",
 		'replace' => "\$this->assertLocationAccess(\$actorUid, \$locationId);\n\t\t\$refType = CodeRules::trim(\$refType);",
 	],
 	[

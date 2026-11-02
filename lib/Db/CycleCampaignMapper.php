@@ -6,22 +6,22 @@ namespace OCA\InventoryCheck\Db;
 
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<CycleCampaign>
+ * @extends WorkspaceScopedMapper<CycleCampaign>
  */
-class CycleCampaignMapper extends QBMapper
+class CycleCampaignMapper extends WorkspaceScopedMapper
 {
 	use RowLocking;
 
 	public const TABLE = 'iv_cc_camp';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, CycleCampaign::class);
+		parent::__construct($db, self::TABLE, CycleCampaign::class, $workspace);
 	}
 
 	public function findById(int $id): CycleCampaign
@@ -75,6 +75,7 @@ class CycleCampaignMapper extends QBMapper
 		$countQb = $this->db->getQueryBuilder();
 		$countQb->select($countQb->func()->count('id', 'cnt'))->from($this->getTableName());
 		$applyFilter($countQb);
+		$this->workspace->apply($countQb);
 		$res = $countQb->executeQuery();
 		$total = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();
@@ -97,6 +98,7 @@ class CycleCampaignMapper extends QBMapper
 			->from($this->getTableName())
 			->where($qb->expr()->eq('location_id', $qb->createNamedParameter($locationId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->neq('status', $qb->createNamedParameter('closed')));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$cnt = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();

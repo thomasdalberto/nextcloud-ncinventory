@@ -6,21 +6,21 @@ namespace OCA\InventoryCheck\Db;
 
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<Location>
+ * @extends WorkspaceScopedMapper<Location>
  */
-class LocationMapper extends QBMapper
+class LocationMapper extends WorkspaceScopedMapper
 {
 	use RowLocking;
 
 	public const TABLE = 'iv_locations';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, Location::class);
+		parent::__construct($db, self::TABLE, Location::class, $workspace);
 	}
 
 	/**
@@ -69,6 +69,7 @@ class LocationMapper extends QBMapper
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('code')->from($this->getTableName());
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$codes = [];
 		while ($row = $result->fetch()) {
@@ -116,6 +117,7 @@ class LocationMapper extends QBMapper
 		$countQb = $this->db->getQueryBuilder();
 		$countQb->select($countQb->func()->count('id', 'cnt'));
 		$apply($countQb);
+		$this->workspace->apply($countQb);
 		$result = $countQb->executeQuery();
 		$total = (int)($result->fetchOne() ?: 0);
 		$result->closeCursor();
@@ -138,6 +140,7 @@ class LocationMapper extends QBMapper
 				$qb->expr()->eq('location_id', $qb->createNamedParameter($locationId, \PDO::PARAM_INT)),
 				$qb->expr()->eq('counterparty_loc_id', $qb->createNamedParameter($locationId, \PDO::PARAM_INT)),
 			));
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$total = (int)($result->fetchOne() ?: 0);
 		$result->closeCursor();
@@ -151,6 +154,7 @@ class LocationMapper extends QBMapper
 			->where($qb->expr()->eq('location_id', $qb->createNamedParameter($locationId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->neq('qty', $qb->createNamedParameter(0, \PDO::PARAM_INT)))
 			->setMaxResults(1);
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$row = $result->fetch();
 		$result->closeCursor();

@@ -7,7 +7,7 @@ namespace OCA\InventoryCheck\Service;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Db\BalanceMapper;
 use OCA\InventoryCheck\Db\ItemMapper;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 
 class LowStockService
 {
@@ -17,7 +17,7 @@ class LowStockService
 	public function __construct(
 		private readonly ItemMapper $items,
 		private readonly BalanceMapper $balances,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly LocationAclService $locationAcl,
 	) {
 	}
@@ -60,12 +60,12 @@ class LowStockService
 
 	public function isPerLocationHintEnabled(): bool
 	{
-		return $this->config->getAppValue(Application::APP_ID, self::KEY_LOCATION_REORDER_HINT_ENABLED, '0') === '1';
+		return $this->settings->get(self::KEY_LOCATION_REORDER_HINT_ENABLED, '0') === '1';
 	}
 
 	public function setPerLocationHintEnabled(bool $enabled): void
 	{
-		$this->config->setAppValue(Application::APP_ID, self::KEY_LOCATION_REORDER_HINT_ENABLED, $enabled ? '1' : '0');
+		$this->settings->set(self::KEY_LOCATION_REORDER_HINT_ENABLED, $enabled ? '1' : '0');
 	}
 
 	/**

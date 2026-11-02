@@ -40,7 +40,7 @@ final class DirectoryControllerTest extends TestCase
 	public function testSearchUsersRequiresAppAdmin(): void
 	{
 		$this->access->method('currentUserId')->willReturn('field-worker');
-		$this->access->expects($this->once())->method('requireAppAdmin')->with('field-worker')
+		$this->access->expects($this->once())->method('requireWorkspaceAdmin')->with('field-worker')
 			->willThrowException(new PermissionDeniedException());
 		$this->directory->expects($this->never())->method('searchUsers');
 
@@ -51,7 +51,7 @@ final class DirectoryControllerTest extends TestCase
 	public function testSearchGroupsRequiresAppAdmin(): void
 	{
 		$this->access->method('currentUserId')->willReturn('field-worker');
-		$this->access->expects($this->once())->method('requireAppAdmin')->with('field-worker')
+		$this->access->expects($this->once())->method('requireWorkspaceAdmin')->with('field-worker')
 			->willThrowException(new PermissionDeniedException());
 		$this->directory->expects($this->never())->method('searchGroups');
 

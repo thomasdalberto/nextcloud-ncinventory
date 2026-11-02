@@ -537,23 +537,9 @@ label.iv-switch-field {
 	line-height: var(--iv-line-base, 1.45);
 }
 
-.iv-license-status {
-	display: flex;
-	flex-direction: column;
-	gap: var(--iv-space-1, 4px);
-	padding: var(--iv-space-3, 12px);
-	border-radius: var(--iv-radius-sm, 6px);
-	background: var(--iv-bg-soft, var(--color-background-hover));
-	border: 1px solid var(--iv-border, var(--color-border));
-}
 
-.iv-license-status__state,
-.iv-license-status__counts {
-	margin: 0;
-	font-size: var(--iv-fs-sm, 0.875rem);
-	line-height: var(--iv-line-base, 1.45);
-	color: var(--color-main-text);
-}
+
+
 
 @media (max-width: 768.98px) {
 	.iv-form-actions {
@@ -1705,6 +1691,7 @@ button.iv-hint-dismiss:focus-visible {
 }
 
 .iv-dialog__actions {
+	box-sizing: border-box;
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--iv-space-2, 10px);
@@ -2206,12 +2193,7 @@ button.iv-hint-dismiss:focus-visible {
 	font-size: 13px;
 }
 
-.iv-license-status {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px 20px;
-	margin: 0 0 16px;
-}
+
 
 /* Bachus: confirm-only booking — giant summary, one qty field */
 .iv-quick-confirm {
@@ -2563,178 +2545,7 @@ button.iv-hint-dismiss:focus-visible {
 	}
 }
 
-/* === support-us:iv start === */
-/**
- * Support & Us — shared family styles (WCAG 2.1 AA, responsive).
- * Prefix: iv
- * Uses Nextcloud CSS variables only (no hardcoded brand purple / cream biases).
- */
 
-.iv-support-us {
-	margin-block-start: 1.5rem;
-}
-
-.iv-support-us__header {
-	margin-block-end: 1rem;
-}
-
-.iv-support-us__title {
-	margin: 0 0 0.35rem;
-	font-size: 1.25rem;
-	line-height: 1.35;
-	color: var(--color-main-text);
-}
-
-.iv-support-us__intro {
-	margin: 0;
-	max-width: 48rem;
-	font-size: 0.95rem;
-	line-height: 1.55;
-	color: var(--color-text-maxcontrast);
-}
-
-.iv-support-us__body {
-	display: flex;
-	flex-direction: column;
-	gap: 1.25rem;
-}
-
-.iv-support-us__primary {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 0.55rem;
-	padding: 1rem 1.1rem;
-	border: 1px solid var(--color-border-maxcontrast, var(--color-border));
-	border-radius: var(--border-radius-large, var(--border-radius, 8px));
-	background:
-		linear-gradient(
-			160deg,
-			var(--color-primary-element-light, var(--color-background-hover)) 0%,
-			var(--color-main-background) 72%
-		);
-}
-
-.iv-support-us__offer-title {
-	margin: 0;
-	font-size: 1.05rem;
-	font-weight: 600;
-	line-height: 1.35;
-	color: var(--color-main-text);
-}
-
-.iv-support-us__benefit {
-	margin: 0;
-	max-width: 42rem;
-	font-size: 0.95rem;
-	line-height: 1.5;
-	/* On the primary-tinted panel: main-text keeps WCAG AA contrast. */
-	color: var(--color-main-text);
-}
-
-.iv-support-us__hint {
-	margin: 0;
-	max-width: 40rem;
-	font-size: 0.875rem;
-	line-height: 1.5;
-	color: var(--color-main-text);
-}
-
-.iv-support-us__hint a {
-	color: var(--color-main-text);
-	text-decoration: underline;
-	text-underline-offset: 0.15em;
-}
-
-.iv-support-us__secondary {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-	gap: 0.85rem;
-}
-
-.iv-support-us__option {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 0.45rem;
-	padding: 0.85rem 1rem;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large, var(--border-radius, 8px));
-	background: var(--color-main-background);
-	box-sizing: border-box;
-}
-
-.iv-support-us__option-hint {
-	margin: 0;
-	font-size: 0.875rem;
-	line-height: 1.45;
-	color: var(--color-text-maxcontrast);
-}
-
-.iv-support-us__cta {
-	/* px, not rem — NC root is 15px so 2.75rem collapses to 41.25px < 44px */
-	min-height: 44px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	padding-inline: 1rem;
-	text-align: center;
-	text-decoration: none;
-	box-sizing: border-box;
-}
-
-.iv-support-us__cta:focus-visible,
-.iv-support-us__hint a:focus-visible,
-.iv-support-us__more a:focus-visible,
-.iv-support-us__contact a:focus-visible {
-	outline: 2px solid var(--color-primary-element);
-	outline-offset: 2px;
-}
-
-.iv-support-us__tertiary {
-	display: flex;
-	flex-direction: column;
-	gap: 0.35rem;
-	padding-block-start: 0.25rem;
-	border-block-start: 1px solid var(--color-border);
-}
-
-.iv-support-us__more,
-.iv-support-us__contact {
-	margin: 0;
-	font-size: 0.875rem;
-	line-height: 1.5;
-	color: var(--color-text-maxcontrast);
-}
-
-.iv-support-us__more a,
-.iv-support-us__contact a {
-	color: var(--color-main-text);
-	text-decoration: underline;
-	text-underline-offset: 0.15em;
-}
-
-@media (max-width: 768.98px) {
-	.iv-support-us__secondary {
-		grid-template-columns: 1fr;
-	}
-
-	.iv-support-us__cta {
-		width: 100%;
-	}
-
-	.iv-support-us__primary,
-	.iv-support-us__option {
-		width: 100%;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.iv-support-us__cta {
-		transition: none;
-	}
-}
-/* === support-us:iv end === */
 
 /* A12 — label print: scan code text ≥ 12 pt */
 @media print {
@@ -2984,224 +2795,7 @@ textarea {
 	margin: 0;
 }
 
-/* === app-feedback:iv start === */
-#app-navigation .iv-nav-footer,
-.iv-nav .iv-nav-footer,
-.iv-app-nav .iv-nav-footer {
-	margin-top: auto;
-	flex-shrink: 0;
-	min-width: 0;
-	width: 100%;
-	box-sizing: border-box;
-	padding: var(--iv-space-2, 0.5rem) var(--iv-space-3, 0.75rem)
-		max(var(--iv-space-3, 0.75rem), env(safe-area-inset-bottom, 0px));
-	border-top: 1px solid var(--iv-border, color-mix(in srgb, var(--color-main-text) 12%, var(--color-main-background)));
-	background: transparent;
-	z-index: 1;
-}
 
-.iv-nav-footer__popover {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: var(--iv-space-2, 0.5rem);
-}
-
-/* Scoped under #content: bare .{p}-nav-footer__trigger loses to NC core
- * `#app-content button` / `#app-navigation button` min-height rules
- * (var(--default-clickable-area) → 34px) — Atlas touch-target defect. */
-#content .iv-nav-footer__trigger {
-	display: inline-flex;
-	gap: var(--iv-space-3, 0.75rem);
-	min-height: 44px;
-	min-width: 44px;
-	padding: var(--iv-space-2, 0.5rem) var(--iv-space-3, 0.75rem);
-	border-radius: var(--iv-radius-sm, 6px);
-	box-sizing: border-box;
-	border: none;
-	background: none;
-	color: var(--color-main-text);
-	font: inherit;
-	cursor: pointer;
-	align-items: center;
-	justify-content: center;
-	white-space: nowrap;
-}
-
-.iv-nav-footer__trigger:hover {
-	background: color-mix(in srgb, var(--color-primary-element) 8%, var(--color-main-background));
-}
-
-.iv-nav-footer__trigger:focus-visible {
-	outline: 3px solid var(--color-primary-element);
-	outline-offset: 2px;
-}
-
-.iv-nav-footer__trigger:focus:not(:focus-visible) {
-	outline: none;
-}
-
-.iv-nav-footer__trigger-icon .iv-icon {
-	width: 20px;
-	height: 20px;
-}
-
-.iv-nav-footer__menu {
-	position: absolute;
-	bottom: calc(100% + var(--iv-space-2, 0.5rem));
-	left: 50%;
-	transform: translateX(-50%);
-	min-width: max-content;
-	max-width: calc(100vw - 2rem);
-	list-style: none;
-	margin: 0;
-	padding: var(--iv-space-2, 0.5rem);
-	background: var(--color-main-background);
-	border: 1px solid var(--iv-border, var(--color-border));
-	border-radius: var(--iv-radius-md, 12px);
-	box-shadow:
-		0 2px 6px color-mix(in srgb, var(--color-main-text) 6%, transparent),
-		0 8px 24px color-mix(in srgb, var(--color-main-text) 10%, transparent);
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	z-index: 100;
-}
-
-.iv-nav-footer__menu[hidden] {
-	display: none;
-}
-
-#content .iv-nav-footer__menu-item {
-	display: flex;
-	align-items: center;
-	gap: var(--iv-space-3, 0.75rem);
-	min-height: 44px;
-	min-width: 44px;
-	padding: var(--iv-space-2, 0.5rem) var(--iv-space-3, 0.75rem);
-	border-radius: var(--iv-radius-sm, 6px);
-	color: var(--color-main-text);
-	text-decoration: none;
-	font-size: var(--iv-fs-sm, 0.875rem);
-	line-height: var(--iv-line-base, 1.45);
-	white-space: normal;
-	overflow-wrap: anywhere;
-}
-
-.iv-nav-footer__menu-item:hover {
-	background: color-mix(in srgb, var(--color-primary-element) 8%, var(--color-main-background));
-}
-
-.iv-nav-footer__menu-item:focus-visible {
-	outline: 3px solid var(--color-primary-element);
-	outline-offset: -2px;
-}
-
-.iv-nav-footer__menu-item:focus:not(:focus-visible) {
-	outline: none;
-}
-
-.iv-nav-footer__menu-icon .iv-icon {
-	width: 18px;
-	height: 18px;
-}
-
-.iv-nav-footer__note {
-	margin: 0;
-	font-size: var(--iv-fs-xs, 0.75rem);
-	line-height: 1.45;
-	color: var(--color-text-maxcontrast);
-	text-align: center;
-	overflow-wrap: anywhere;
-}
-
-@media (width < 480px) {
-	.iv-nav-footer__menu {
-		left: var(--iv-space-2, 0.5rem);
-		right: var(--iv-space-2, 0.5rem);
-		transform: none;
-		min-width: 0;
-	}
-}
-
-.iv-nav-footer__new-tab {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	padding: 0;
-	margin: -1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-	border: 0;
-}
-
-#content .iv-nav-footer__toast-link {
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-	min-width: 44px;
-	margin-top: var(--iv-space-2, 0.5rem);
-	padding: 0;
-	font-size: var(--iv-fs-sm, 0.875rem);
-	line-height: 1.45;
-	color: var(--color-error-text, var(--color-main-text));
-	text-decoration: underline;
-	text-underline-offset: 0.15em;
-	overflow-wrap: anywhere;
-}
-
-.iv-nav-footer__toast-link:focus-visible {
-	outline: 2px solid var(--color-primary-element);
-	outline-offset: 2px;
-}
-
-.iv-nav-footer__toast-link:focus:not(:focus-visible) {
-	outline: none;
-}
-
-@media (prefers-contrast: more) {
-	#app-navigation .iv-nav-footer,
-	.iv-nav .iv-nav-footer,
-	.iv-app-nav .iv-nav-footer {
-		border-top-width: 2px;
-		border-top-color: var(--color-main-text);
-	}
-
-	.iv-nav-footer__menu {
-		border-width: 2px;
-	}
-
-	.iv-nav-footer__trigger:focus-visible,
-	.iv-nav-footer__menu-item:focus-visible,
-	.iv-nav-footer__toast-link:focus-visible {
-		outline-width: 3px;
-	}
-}
-
-@media (forced-colors: active) {
-	.iv-nav-footer__menu-item,
-	.iv-nav-footer__toast-link {
-		forced-color-adjust: none;
-		color: LinkText;
-	}
-
-	.iv-nav-footer__trigger:focus-visible,
-	.iv-nav-footer__menu-item:focus-visible,
-	.iv-nav-footer__toast-link:focus-visible {
-		outline: 3px solid Highlight;
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.iv-nav-footer__trigger,
-	.iv-nav-footer__menu-item,
-	.iv-nav-footer__toast-link {
-		transition: none;
-	}
-}
-/* === app-feedback:iv end === */
 
 /*
  * Control-border baseline (WCAG 1.4.11 >= 3:1 vs background) — DESIGN-SYSTEM §3.6.0.
@@ -3290,4 +2884,46 @@ textarea {
 
 .iv-checkbox__label {
 	line-height: 1.4;
+}
+
+/* Workspace management reuses the existing cards, dialogs and directory picker. */
+.iv-workspace-nav { padding: 12px 16px; }
+.iv-workspace-link { display: block; padding: 10px; border-radius: var(--border-radius); font-weight: 600; }
+.iv-workspace-card { margin-bottom: 16px; padding: 20px; }
+.iv-workspace-actions, .iv-workspace-member { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.iv-workspace-member { justify-content: space-between; padding: 8px 0; }
+.iv-workspace-members { margin-top: 20px; }
+
+
+/* Deck-style app settings entry stays at the bottom of the navigation. */
+#app-navigation.iv-nav {
+	display: flex;
+	flex-direction: column;
+	padding-bottom: 0;
+}
+#app-navigation.iv-nav > .nav-menu {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+.iv-app-settings-footer {
+	flex: 0 0 auto;
+	margin-top: auto;
+	padding: 8px;
+	border-top: 1px solid var(--color-border);
+}
+.iv-app-settings-button {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 44px;
+	padding: 8px 12px;
+	border: 0;
+	background: transparent;
+	color: var(--color-main-text);
+	text-align: start;
+}
+.iv-app-settings-button:hover, .iv-app-settings-button:focus-visible {
+	background: var(--color-background-hover);
 }

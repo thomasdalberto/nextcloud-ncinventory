@@ -19,6 +19,7 @@ final class ScanIdempotencyServiceTest extends TestCase
 		$svc = new ScanIdempotencyService(
 			$this->createMock(IDBConnection::class),
 			new Clock(),
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class),
 		);
 		self::assertNull($svc->normalizeClientRequestId(''));
 		self::assertNull($svc->normalizeClientRequestId('has space'));
@@ -56,7 +57,7 @@ final class ScanIdempotencyServiceTest extends TestCase
 		$db = $this->createMock(IDBConnection::class);
 		$db->method('getQueryBuilder')->willReturn($qb);
 
-		$svc = new ScanIdempotencyService($db, new Clock());
+		$svc = new ScanIdempotencyService($db, new Clock(), $this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class));
 		$look = $svc->lookup('device:1', 'ob-1');
 		self::assertSame('done', $look['status']);
 		self::assertSame(['movements' => [], 'balances' => []], $look['response']);
@@ -68,6 +69,7 @@ final class ScanIdempotencyServiceTest extends TestCase
 		$svc = new ScanIdempotencyService(
 			$this->createMock(IDBConnection::class),
 			new Clock(),
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class),
 		);
 		$a = $svc->fingerprintFromParams([
 			'code' => 'SKU-1',
@@ -101,7 +103,7 @@ final class ScanIdempotencyServiceTest extends TestCase
 		$db = $this->createMock(IDBConnection::class);
 		$db->method('getQueryBuilder')->willReturn($qb);
 
-		$svc = new ScanIdempotencyService($db, new Clock());
+		$svc = new ScanIdempotencyService($db, new Clock(), $this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class));
 		self::assertFalse($svc->tryClaim('alice', 'req-1', 'abc'));
 	}
 }

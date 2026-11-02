@@ -36,6 +36,20 @@ InventoryCheck keeps parts and supplies on the Nextcloud you already host: wareh
 
 - Nextcloud 32–35 · PHP 8.2–8.5 · MySQL or PostgreSQL
 
+### Personal workspaces in this fork
+
+Open **Workspaces** in the sidebar. Each account gets its own **Demo workspace** on first use, containing the original three demo items and locations. Create as many additional workspaces as you need; new workspaces start empty. Deleting the demo is permanent and does not cause it to be recreated.
+
+Only owners and accepted invitees can open a workspace. Owners invite existing Nextcloud accounts as **editors** or **viewers**. Recipients receive a Nextcloud notification with **Accept invitation** and **Decline invitation** buttons, also included in Nextcloud's notification emails when enabled. Email delivery requires a configured Nextcloud mail server, an account email address, background jobs and enabled notification emails in personal settings. Each button applies its response directly and dismisses the notification. Opening the notification itself dismisses it and shows Workspaces, leaving the invitation pending. Editors can manage inventory and stocktakes. Viewers can browse inventory. Owners can rename or permanently delete a workspace, cancel invitations and remove members. Members can leave. Deletion removes the workspace's ledger, photos, scanner slots and memberships.
+
+Workspace creation, renaming, deletion, invitations and membership changes appear in Nextcloud Activity for the people affected. Pending invitees only see their own invitation events and workspace deletion. Answered or revoked invitations disappear from notifications; old links cannot act on a later invitation.
+
+Nextcloud and app administrators manage instance settings; those privileges do not grant access to other people's workspaces. The old global Office allow-lists no longer grant inventory permissions. Existing instance-wide inventory rows remain unassigned and hidden; this fork does not import them into user workspaces.
+
+The workspace ID travels with each page and API request, so different tabs can use different workspaces. Licensing, app access restrictions and stock/quantity policies remain instance-wide. Owners cannot override an administrator's restriction on entry to the app.
+
+For the implementation rules and API, see [WORKSPACES.md](WORKSPACES.md). For a self-contained local environment with no host PHP installation, see [dev/README.md](dev/README.md).
+
 ### Install from Git
 
 ```bash
@@ -47,7 +61,7 @@ composer install --no-dev
 
 Enable the app in Nextcloud (Apps → InventoryCheck) or run `php occ app:enable inventorycheck`.
 
-First install may seed a small demo warehouse once (`demo_seeded`). Deleting those rows will not resurrect them on repair.
+The schema repair does not seed shared inventory. Each account receives its private demo on first use.
 
 ### App Store release (maintainers)
 

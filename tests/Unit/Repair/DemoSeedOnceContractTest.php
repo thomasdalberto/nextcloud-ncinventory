@@ -12,19 +12,16 @@ use PHPUnit\Framework\TestCase;
  */
 final class DemoSeedOnceContractTest extends TestCase
 {
-	public function testSeedDemoGatesOnAppConfigFlag(): void
+	public function testDemoIsPerAccountAndRepairDoesNotSeedGlobalData(): void
 	{
-		$src = (string)file_get_contents(dirname(__DIR__, 3) . '/lib/Repair/EnsureInventoryCheckSchema.php');
-		self::assertStringContainsString('DEMO_SEEDED_KEY', $src);
-		self::assertSame('demo_seeded', EnsureInventoryCheckSchema::DEMO_SEEDED_KEY);
-		self::assertMatchesRegularExpression(
-			"/getAppValue\\([^,]+,\\s*self::DEMO_SEEDED_KEY,\\s*'0'\\)\\s*===\\s*'1'/",
-			$src,
-		);
-		self::assertMatchesRegularExpression(
-			"/setAppValue\\([^,]+,\\s*self::DEMO_SEEDED_KEY,\\s*'1'\\)/",
-			$src,
-		);
+		$root = dirname(__DIR__, 3);
+		$src = (string)file_get_contents($root . '/lib/Service/WorkspaceService.php');
+		self::assertStringContainsString("'workspace_initialized'", $src);
+		self::assertStringContainsString('getUserValue($uid', $src);
+		self::assertStringContainsString('setUserValue($uid', $src);
+		$repair = (string)file_get_contents($root . '/lib/Repair/EnsureInventoryCheckSchema.php');
+		self::assertStringNotContainsString("->insert('iv_items')", $repair);
+		self::assertStringNotContainsString("->insert('iv_locations')", $repair);
 	}
 
 	public function testUninstallClearsAllAppConfigIncludingDemoFlag(): void

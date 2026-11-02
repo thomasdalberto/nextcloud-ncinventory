@@ -11,7 +11,7 @@ use OCA\InventoryCheck\Db\UniqueViolation;
 use OCA\InventoryCheck\Exception\ConflictException;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Util\Csv;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IDBConnection;
 use OCP\Lock\ILockingProvider;
 use OCP\Lock\LockedException;
@@ -33,7 +33,7 @@ class CsvImportService
 		private readonly AccessControlService $access,
 		private readonly Clock $clock,
 		private readonly ILockingProvider $locking,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 	}
 
@@ -42,7 +42,7 @@ class CsvImportService
 	 */
 	public function dryRun(string $actorUid, string $csvText): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$report = $this->validateAll($csvText, false);
 		return ['ok' => $report['ok'], 'errors' => $report['errors']];
 	}
@@ -52,7 +52,7 @@ class CsvImportService
 	 */
 	public function commit(string $actorUid, string $csvText, bool $skipErrors = false): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$report = $this->validateAll($csvText, true);
 		if ($report['errors'] !== [] && !$skipErrors) {
 			return [
@@ -203,7 +203,7 @@ class CsvImportService
 
 			$reorderRaw = $raw['reorder_level'] ?? $raw['reorderlevel'] ?? '0';
 			try {
-				$reorder = QtyScale::toStorage($this->config, $reorderRaw === '' ? '0' : $reorderRaw);
+				$reorder = QtyScale::toStorage($this->settings, $reorderRaw === '' ? '0' : $reorderRaw);
 			} catch (ValidationException) {
 				$errors[] = ['line' => $line, 'code' => 'invalid_reorder', 'message' => 'reorder_level out of range'];
 				continue;
@@ -217,7 +217,7 @@ class CsvImportService
 				$errors[] = ['line' => $line, 'code' => 'name_required', 'message' => 'Name is required'];
 				continue;
 			}
-			if ($reorder < 0 || $reorder > QtyScale::maxStorage($this->config)) {
+			if ($reorder < 0 || $reorder > QtyScale::maxStorage($this->settings)) {
 				$errors[] = ['line' => $line, 'code' => 'invalid_reorder', 'message' => 'reorder_level out of range'];
 				continue;
 			}
@@ -244,12 +244,12 @@ class CsvImportService
 					continue;
 				}
 				try {
-					$openingQty = QtyScale::toStorage($this->config, $openingQtyRaw);
+					$openingQty = QtyScale::toStorage($this->settings, $openingQtyRaw);
 				} catch (ValidationException) {
 					$errors[] = ['line' => $line, 'code' => 'invalid_opening', 'message' => 'opening_qty must be 1…1000000'];
 					continue;
 				}
-				if ($openingQty < 1 || $openingQty > QtyScale::maxStorage($this->config)) {
+				if ($openingQty < 1 || $openingQty > QtyScale::maxStorage($this->settings)) {
 					$errors[] = ['line' => $line, 'code' => 'invalid_opening', 'message' => 'opening_qty must be 1…1000000'];
 					continue;
 				}

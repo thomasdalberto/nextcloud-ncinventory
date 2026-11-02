@@ -111,11 +111,6 @@ final class LowStockNotifyServiceTest extends TestCase
 		$activity->expects(self::once())->method('publish');
 
 		$access = $this->createMock(AccessControlService::class);
-		$access->method('getJsonIdList')->willReturnCallback(
-			static function (string $key): array {
-				return $key === LowStockNotifyService::KEY_NOTIFY_USER_IDS ? ['alice'] : [];
-			},
-		);
 		$users = $this->createMock(IUserManager::class);
 		$users->method('userExists')->willReturn(true);
 
@@ -168,19 +163,23 @@ final class LowStockNotifyServiceTest extends TestCase
 		$clock->method('now')->willReturn(1_700_000_000);
 		$url = $this->createMock(IURLGenerator::class);
 		$url->method('linkToRouteAbsolute')->willReturn('https://example.test/item/7');
+		$workspace = $this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class);
+		$workspace->method('canRead')->willReturn(true);
+		$settings = $this->createMock(\OCA\InventoryCheck\Service\WorkspaceSettings::class);
+		$settings->method('getList')->willReturn(['alice']);
+		$settings->method('get')->willReturn('0');
 		return new LowStockNotifyService(
 			$items,
 			$balances,
 			$log,
 			$access ?? $this->createMock(AccessControlService::class),
 			$clock,
-			$this->createMock(IConfig::class),
-			$this->createMock(IGroupManager::class),
+			$settings,
 			$users ?? $this->createMock(IUserManager::class),
 			$notifications ?? $this->createMock(INotificationManager::class),
 			$activity ?? $this->createMock(IActivityManager::class),
 			$url,
 			$this->createMock(LoggerInterface::class),
-		);
+		$workspace, $this->createMock(\OCA\InventoryCheck\Db\WorkspaceMapper::class));
 	}
 }

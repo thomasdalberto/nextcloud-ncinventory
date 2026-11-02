@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Directory search backing the Settings pickers (portfolio ACCESS-AND-DIRECTORY-PICKERS.md
  * §1): search + pick only. This service only narrows candidates for humans —
- * every write path (ConfigController, LicenseService, LocationAclService)
+ * every write path (ConfigController, ScannerService, LocationAclService)
  * re-validates the committed id independently.
  */
 final class DirectoryOptionsServiceTest extends TestCase

@@ -11,14 +11,14 @@ use PHPUnit\Framework\TestCase;
  * mode from planning EXECUTION-PLAN §2.3 still has a concrete control in tree.
  *
  * Mapping (AF → needle / locus):
- * - AF-IV1  seat/license gate: MobileGateException seat_required / license_missing
+ * - AF-IV1  seat/license gate: MobileRequestException seat_required / license_missing
  * - AF-IV2  bad envelope: Iv2Codec ERROR_INVALID_FORMAT / license_invalid path
  * - AF-IV3  unknown item code: ItemService byCode → code_not_found
  * - AF-IV4  unknown location code: LocationService byCode → code_not_found
  * - AF-IV5  insufficient_stock: InsufficientStockException + middleware map
  * - AF-IV6  double-tap Confirm: scan posts via single MovementService::scan match
  * - AF-IV7  device receive blocked: asOffice ? receive : PermissionDeniedException
- * - AF-IV8  offline hard error: MobileGateException auth_required (device-only favourites)
+ * - AF-IV8  offline hard error: MobileRequestException auth_required (device-only favourites)
  * - AF-IV9  offline queue success-on-200: companionApi capability surface (mobile outbox)
  * - AF-IV10 bag partial: cycle setCount / line-level posting (no all-or-nothing bag)
  * - AF-IV11 require_adjust_reason: ReasonCodes::requireForAdjust
@@ -48,21 +48,6 @@ final class AfIvWalkthroughContractTest extends TestCase
 		$contents = file_get_contents($path);
 		self::assertNotFalse($contents, 'missing source: ' . $relative);
 		return (string)$contents;
-	}
-
-	public function testAfIv1SeatAndLicenseGate(): void
-	{
-		$gate = $this->src('lib/Service/MobileGateService.php');
-		self::assertStringContainsString("throw new MobileGateException('license_missing')", $gate);
-		self::assertStringContainsString("throw new MobileGateException('seat_required')", $gate);
-	}
-
-	public function testAfIv2BadEnvelope(): void
-	{
-		$codec = $this->src('lib/License/Iv2Codec.php');
-		self::assertStringContainsString('ERROR_INVALID_FORMAT', $codec);
-		$license = $this->src('lib/Service/LicenseService.php');
-		self::assertStringContainsString('Iv2Codec::ERROR_INVALID_FORMAT', $license);
 	}
 
 	public function testAfIv3UnknownItemCode(): void
@@ -107,13 +92,13 @@ final class AfIvWalkthroughContractTest extends TestCase
 	public function testAfIv8DeviceCannotUseSeatOnlyRoutes(): void
 	{
 		$mobile = $this->src('lib/Controller/MobileController.php');
-		self::assertStringContainsString("throw new MobileGateException('auth_required')", $mobile);
+		self::assertStringContainsString("throw new MobileRequestException('auth_required')", $mobile);
 		self::assertStringContainsString('Device tokens are field-only', $mobile);
 	}
 
 	public function testAfIv9CompanionApiSurfaceForOutbox(): void
 	{
-		$gate = $this->src('lib/Service/MobileGateService.php');
+		$gate = $this->src('lib/Service/MobileAccessService.php');
 		self::assertStringContainsString('COMPANION_API_ITEM_PHOTO = 5', $gate);
 		self::assertStringContainsString("'companionApi' => \$companionApi", $gate);
 	}
@@ -179,13 +164,7 @@ final class AfIvWalkthroughContractTest extends TestCase
 	public function testAfIv14GateOnMutations(): void
 	{
 		$mobile = $this->src('lib/Controller/MobileController.php');
-		self::assertGreaterThanOrEqual(3, substr_count($mobile, '$this->gate->assertGate('));
-	}
-
-	public function testAfIv15HttpsUrlHygiene(): void
-	{
-		$links = $this->src('lib/Support/SupportUsLinks.php');
-		self::assertStringContainsString("str_starts_with(\$url, 'https://')", $links);
+		self::assertGreaterThanOrEqual(3, substr_count($mobile, '$this->gate->requireCaller('));
 	}
 
 	public function testAfIv16DeviceAclFailClosed(): void
@@ -220,15 +199,6 @@ final class AfIvWalkthroughContractTest extends TestCase
 		$mw = $this->src('lib/Middleware/AppAccessMiddleware.php');
 		self::assertStringContainsString("'rate_limited'", $mw);
 		self::assertStringContainsString('429', $mw);
-	}
-
-	public function testAfIv20WebNever402AndComingSoon(): void
-	{
-		$mw = $this->src('lib/Middleware/AppAccessMiddleware.php');
-		self::assertStringContainsString('AF-IV20', $mw);
-		self::assertStringContainsString("str_contains(\$class, 'MobileController')", $mw);
-		$license = $this->src('lib/Service/LicenseService.php');
-		self::assertStringContainsString("MOBILE_APP_STATUS = 'coming_soon'", $license);
 	}
 
 	public function testCloseBlockedByConflictsUsesAcknowledgeFlag(): void

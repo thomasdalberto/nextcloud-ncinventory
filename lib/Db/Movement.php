@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method int getItemId()
@@ -36,7 +35,7 @@ use OCP\AppFramework\Db\Entity;
  * @method string|null getReasonCode()
  * @method void setReasonCode(?string $v)
  */
-class Movement extends Entity
+class Movement extends WorkspaceEntity
 {
 	protected int $itemId = 0;
 	protected int $locationId = 0;
@@ -58,6 +57,7 @@ class Movement extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('itemId', 'integer');
 		$this->addType('locationId', 'integer');
 		$this->addType('kind', 'string');

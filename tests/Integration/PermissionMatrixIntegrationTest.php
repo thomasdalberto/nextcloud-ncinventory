@@ -7,7 +7,7 @@ namespace OCA\InventoryCheck\Tests\Integration;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Controller\ConfigController;
 use OCA\InventoryCheck\Controller\ItemController;
-use OCA\InventoryCheck\Controller\LicenseController;
+use OCA\InventoryCheck\Controller\ScannerController;
 use OCA\InventoryCheck\Controller\LocationController;
 use OCA\InventoryCheck\Controller\LowStockController;
 use OCA\InventoryCheck\Controller\MovementController;
@@ -419,14 +419,14 @@ final class PermissionMatrixIntegrationTest extends TestCase
 		$this->apiMiddleware()->beforeController($config, 'index');
 		$response = $config->index();
 		$this->assertArrayHasKey('accessRestrictionEnabled', $response->getData());
-		$this->assertTrue($response->getData()['isAppAdmin']);
+		$this->assertTrue($response->getData()['isWorkspaceAdmin']);
 		$this->assertArrayHasKey('isSystemAdmin', $response->getData());
 		$this->assertArrayHasKey('appAdmins', $response->getData());
 		$this->assertIsArray($response->getData()['appAdmins']);
 
 		$acl = Server::get(AccessControlService::class);
 		$before = $acl->allowNegativeStock();
-		$acl->requireAppAdmin(self::ADMIN);
+		$acl->requireWorkspaceAdmin(self::ADMIN);
 		$acl->setAllowNegativeStock(!$before);
 		$this->assertSame(!$before, $acl->allowNegativeStock());
 		$acl->setAllowNegativeStock($before);
@@ -437,7 +437,7 @@ final class PermissionMatrixIntegrationTest extends TestCase
 	public function testP7OfficeDeniedLicense(): void
 	{
 		$this->loginAs(self::OFFICE);
-		$license = Server::get(LicenseController::class);
+		$license = Server::get(ScannerController::class);
 		$this->invokeExpectingPermissionDenied($license, 'show', fn () => $license->show());
 		$this->invokeExpectingPermissionDenied($license, 'apply', fn () => $license->apply());
 	}
@@ -445,7 +445,7 @@ final class PermissionMatrixIntegrationTest extends TestCase
 	public function testP7AppAdminCanReadLicenseStatus(): void
 	{
 		$this->loginAs(self::ADMIN);
-		$license = Server::get(LicenseController::class);
+		$license = Server::get(ScannerController::class);
 		$this->apiMiddleware()->beforeController($license, 'show');
 		$response = $license->show();
 		$this->assertArrayHasKey('mobileAppStatus', $response->getData());
@@ -454,7 +454,7 @@ final class PermissionMatrixIntegrationTest extends TestCase
 	public function testP7SystemAdminPassesLicenseGate(): void
 	{
 		$this->loginAs(self::SYS);
-		$license = Server::get(LicenseController::class);
+		$license = Server::get(ScannerController::class);
 		$this->apiMiddleware()->beforeController($license, 'show');
 		$this->assertInstanceOf(JSONResponse::class, $license->show());
 	}
@@ -485,7 +485,7 @@ final class PermissionMatrixIntegrationTest extends TestCase
 		$response = $page->settingsSection('support');
 		$this->assertInstanceOf(TemplateResponse::class, $response);
 		$params = $response->getParams();
-		$this->assertTrue($params['isAppAdmin']);
+		$this->assertTrue($params['isWorkspaceAdmin']);
 		$this->assertSame('support', $params['settingsSection']);
 		$this->assertArrayHasKey('supportUsLicenseUrl', $params);
 		$this->assertStringContainsString('#iv-license', (string)$params['supportUsLicenseUrl']);

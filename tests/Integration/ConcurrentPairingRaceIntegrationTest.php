@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OCA\InventoryCheck\Tests\Integration;
 
 use OCA\InventoryCheck\AppInfo\Application;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Tests\Support\Iv2TestSigning;
 use Test\TestCase;
 
@@ -41,7 +41,7 @@ final class ConcurrentPairingRaceIntegrationTest extends TestCase
 	public function testConcurrentPairClaimsExactlyOneToken(): void
 	{
 		$app = new Application();
-		$license = $app->getContainer()->get(LicenseService::class);
+		$license = $app->getContainer()->get(ScannerService::class);
 		$license->apply('admin', Iv2TestSigning::signPayload([
 			'v' => 2,
 			'product' => 'inventorycheck',

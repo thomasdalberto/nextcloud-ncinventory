@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace OCA\InventoryCheck\Listener;
 
 use OCA\InventoryCheck\Db\LocationFavouriteMapper;
-use OCA\InventoryCheck\Service\AccessControlService;
-use OCA\InventoryCheck\Service\LicenseService;
 use OCA\InventoryCheck\Service\LocationAclService;
+use OCA\InventoryCheck\Service\WorkspaceService;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\User\Events\UserDeletedEvent;
@@ -21,10 +20,9 @@ use OCP\User\Events\UserDeletedEvent;
 class UserDeletedListener implements IEventListener
 {
 	public function __construct(
-		private AccessControlService $access,
-		private LicenseService $license,
 		private LocationFavouriteMapper $favourites,
 		private LocationAclService $locationAcl,
+		private WorkspaceService $workspaces,
 	) {
 	}
 
@@ -34,8 +32,7 @@ class UserDeletedListener implements IEventListener
 			return;
 		}
 		$uid = $event->getUser()->getUID();
-		$this->access->purgeUser($uid);
-		$this->license->removeSeat($uid);
+		$this->workspaces->purgeUser($uid);
 		$this->favourites->deleteAllForUser($uid);
 		$this->locationAcl->purgeUser($uid);
 	}

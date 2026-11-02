@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<LocationAcl>
+ * @extends WorkspaceScopedMapper<LocationAcl>
  */
-class LocationAclMapper extends QBMapper
+class LocationAclMapper extends WorkspaceScopedMapper
 {
 	public const TABLE = 'iv_loc_acl';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, LocationAcl::class);
+		parent::__construct($db, self::TABLE, LocationAcl::class, $workspace);
 	}
 
 	/** @return list<LocationAcl> */
@@ -69,6 +69,7 @@ class LocationAclMapper extends QBMapper
 		}
 		$qb->selectDistinct('location_id')->from($this->getTableName())
 			->where($qb->expr()->orX(...$conds));
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$out = [];
 		while (($row = $result->fetch()) !== false) {
@@ -93,10 +94,12 @@ class LocationAclMapper extends QBMapper
 			$del->delete($this->getTableName())
 				->where($del->expr()->eq('subject_type', $del->createNamedParameter($subjectType)))
 				->andWhere($del->expr()->eq('subject_id', $del->createNamedParameter($subjectId)));
+			$this->workspace->apply($del);
 			$del->executeStatement();
 
 			foreach (array_unique($locationIds) as $locationId) {
 				$this->db->insertIgnoreConflict($this->getTableName(), [
+					'workspace_id' => $this->workspace->id(),
 					'subject_type' => $subjectType,
 					'subject_id' => $subjectId,
 					'location_id' => $locationId,

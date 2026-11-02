@@ -15,12 +15,11 @@ use OCA\InventoryCheck\Service\CsvImportService;
 use OCA\InventoryCheck\Service\CycleCountSemantics;
 use OCA\InventoryCheck\Service\CycleCountService;
 use OCA\InventoryCheck\Service\DevicePairingService;
-use OCA\InventoryCheck\Service\DeviceRank;
 use OCA\InventoryCheck\Service\DirectoryOptionsService;
 use OCA\InventoryCheck\Service\FlangeService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationScanPolicy;
@@ -28,7 +27,7 @@ use OCA\InventoryCheck\Service\LocationService;
 use OCA\InventoryCheck\Service\LowStockNotifyService;
 use OCA\InventoryCheck\Service\LowStockQuery;
 use OCA\InventoryCheck\Service\LowStockService;
-use OCA\InventoryCheck\Service\MobileGateService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementMath;
 use OCA\InventoryCheck\Service\MovementService;
 use OCA\InventoryCheck\Service\Pagination;
@@ -36,7 +35,6 @@ use OCA\InventoryCheck\Service\QtyScale;
 use OCA\InventoryCheck\Service\QtyScaleService;
 use OCA\InventoryCheck\Service\ReasonCodes;
 use OCA\InventoryCheck\Service\ScanIdempotencyService;
-use OCA\InventoryCheck\Service\SeatRank;
 use OCA\InventoryCheck\Service\SettingsSectionCatalog;
 use OCA\InventoryCheck\Service\SuggestedOrder;
 use OCA\InventoryCheck\Service\UpgradeBackupCatalog;
@@ -75,13 +73,13 @@ final class AtlasReachableServiceInvokeCoverageTest extends TestCase
 			FlangeService::class,
 			ItemPhotoService::class,
 			ItemService::class,
-			LicenseService::class,
+			ScannerService::class,
 			LocationAclService::class,
 			LocationFavouriteService::class,
 			LocationService::class,
 			LowStockNotifyService::class,
 			LowStockService::class,
-			MobileGateService::class,
+			MobileAccessService::class,
 			MovementService::class,
 			QtyScaleService::class,
 			ScanIdempotencyService::class,
@@ -97,14 +95,12 @@ final class AtlasReachableServiceInvokeCoverageTest extends TestCase
 			Clock::class,
 			CodeRules::class,
 			CycleCountSemantics::class,
-			DeviceRank::class,
 			LocationScanPolicy::class,
 			LowStockQuery::class,
 			MovementMath::class,
 			Pagination::class,
 			QtyScale::class,
 			ReasonCodes::class,
-			SeatRank::class,
 			SuggestedOrder::class,
 			UpgradeBackupCatalog::class,
 			UpgradeBackupIntegrity::class,
@@ -153,13 +149,6 @@ final class AtlasReachableServiceInvokeCoverageTest extends TestCase
 		$clock = new Clock();
 		self::assertIsInt($clock->now());
 		self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $clock->todayYmd());
-
-		$ranks = SeatRank::ranks([
-			['id' => 2, 'assignedAt' => 20],
-			['id' => 1, 'assignedAt' => 10],
-		]);
-		self::assertSame([1 => 1, 2 => 2], $ranks);
-		self::assertTrue(SeatRank::isWithinLimit([['id' => 1, 'assignedAt' => 1]], 1, 1));
 
 		self::assertTrue(ReasonCodes::isValid('inventur'));
 		self::assertFalse(ReasonCodes::isValid('nope'));

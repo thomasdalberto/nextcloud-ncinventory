@@ -7,7 +7,7 @@ namespace OCA\InventoryCheck\Service;
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Db\LocationMapper;
 use OCA\InventoryCheck\Exception\ValidationException;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 
 /**
  * Wave D8: optional require_location_scan — scan/issue/transfer must confirm location code.
@@ -16,14 +16,14 @@ final class LocationScanPolicy
 {
 	public const KEY_REQUIRE_LOCATION_SCAN = 'require_location_scan';
 
-	public static function isRequired(IConfig $config): bool
+	public static function isRequired(WorkspaceSettings $settings): bool
 	{
-		return $config->getAppValue(Application::APP_ID, self::KEY_REQUIRE_LOCATION_SCAN, '0') === '1';
+		return $settings->get(self::KEY_REQUIRE_LOCATION_SCAN, '0') === '1';
 	}
 
-	public static function setRequired(IConfig $config, bool $required): void
+	public static function setRequired(WorkspaceSettings $settings, bool $required): void
 	{
-		$config->setAppValue(Application::APP_ID, self::KEY_REQUIRE_LOCATION_SCAN, $required ? '1' : '0');
+		$settings->set(self::KEY_REQUIRE_LOCATION_SCAN, $required ? '1' : '0');
 	}
 
 	/**
@@ -34,14 +34,14 @@ final class LocationScanPolicy
 	 * @throws ValidationException location_code_required | location_code_mismatch
 	 */
 	public static function assertMatches(
-		IConfig $config,
+		WorkspaceSettings $settings,
 		LocationMapper $locations,
 		int $locationId,
 		?string $locationCode,
 		string $field = 'locationCode',
 	): void {
 		$code = $locationCode !== null ? CodeRules::trim($locationCode) : '';
-		$required = self::isRequired($config);
+		$required = self::isRequired($settings);
 		$fieldName = $field !== '' ? $field : 'locationCode';
 
 		if (!$required) {

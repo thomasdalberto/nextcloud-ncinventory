@@ -13,7 +13,7 @@ use OCA\InventoryCheck\Db\UniqueViolation;
 use OCA\InventoryCheck\Exception\ConflictException;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Exception\ValidationException;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IDBConnection;
 use OCP\Lock\ILockingProvider;
 use OCP\Lock\LockedException;
@@ -28,7 +28,7 @@ class ItemService
 		private readonly Clock $clock,
 		private readonly ILockingProvider $locking,
 		private readonly LocationAclService $locationAcl,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly CycleLineMapper $cycleLines,
 		private readonly LocationMapper $locations,
 		private readonly ?ItemPhotoService $photos = null,
@@ -86,7 +86,7 @@ class ItemService
 	 */
 	private function stripConfidentialItemFields(array $item, string $actorUid): array
 	{
-		if ($this->access->isOffice($actorUid)) {
+		if ($this->access->canWrite($actorUid)) {
 			return $item;
 		}
 		unset($item['supplierNote'], $item['lastPriceMinor']);
@@ -126,7 +126,7 @@ class ItemService
 	 */
 	public function create(string $actorUid, array $input): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$sku = CodeRules::trim((string)($input['sku'] ?? ''));
 		$scan = CodeRules::trim((string)($input['scanCode'] ?? $input['scan_code'] ?? ''));
 		if ($scan === '') {
@@ -187,7 +187,7 @@ class ItemService
 	 */
 	public function update(string $actorUid, int $id, array $input): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$touchesCodes = array_key_exists('sku', $input)
 			|| array_key_exists('scanCode', $input)
 			|| array_key_exists('scan_code', $input);
@@ -198,7 +198,7 @@ class ItemService
 
 	public function delete(string $actorUid, int $id): void
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$photoName = null;
 		$this->db->beginTransaction();
 		try {
@@ -264,7 +264,7 @@ class ItemService
 			}
 			if (array_key_exists('reorderLevel', $input) || array_key_exists('reorder_level', $input)) {
 				$reorder = (int)($input['reorderLevel'] ?? $input['reorder_level']);
-				if ($reorder < 0 || $reorder > QtyScale::maxStorage($this->config)) {
+				if ($reorder < 0 || $reorder > QtyScale::maxStorage($this->settings)) {
 					throw new ValidationException('validation_failed', '', [['field' => 'reorderLevel', 'code' => 'validation_failed']]);
 				}
 				$item->setReorderLevel($reorder);
@@ -430,7 +430,7 @@ class ItemService
 			throw new ValidationException('validation_failed', '', [['field' => 'targetStock', 'code' => 'validation_failed']]);
 		}
 		$value = (int)$raw;
-		$max = QtyScale::maxStorage($this->config);
+		$max = QtyScale::maxStorage($this->settings);
 		if ($value < 0 || $value > $max) {
 			throw new ValidationException('validation_failed', '', [['field' => 'targetStock', 'code' => 'validation_failed']]);
 		}
@@ -490,7 +490,7 @@ class ItemService
 		if ($desc !== null && mb_strlen($desc) > 10000) {
 			throw new ValidationException('validation_failed', '', [['field' => 'description', 'code' => 'validation_failed']]);
 		}
-		if ($reorder < 0 || $reorder > QtyScale::maxStorage($this->config)) {
+		if ($reorder < 0 || $reorder > QtyScale::maxStorage($this->settings)) {
 			throw new ValidationException('validation_failed', '', [['field' => 'reorderLevel', 'code' => 'validation_failed']]);
 		}
 	}

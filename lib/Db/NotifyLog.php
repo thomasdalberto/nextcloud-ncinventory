@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method string getDedupeKey()
@@ -14,7 +13,7 @@ use OCP\AppFramework\Db\Entity;
  * @method int getCreatedAt()
  * @method void setCreatedAt(int $v)
  */
-class NotifyLog extends Entity
+class NotifyLog extends WorkspaceEntity
 {
 	protected string $dedupeKey = '';
 	protected int $itemId = 0;
@@ -22,6 +21,7 @@ class NotifyLog extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('dedupeKey', 'string');
 		$this->addType('itemId', 'integer');
 		$this->addType('createdAt', 'integer');

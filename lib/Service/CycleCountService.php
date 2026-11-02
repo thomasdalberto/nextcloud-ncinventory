@@ -110,7 +110,7 @@ class CycleCountService
 	/** @return array<string, mixed> */
 	public function create(string $actorUid, int $locationId, string $name): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$name = CodeRules::trim($name);
 		if ($name === '' || mb_strlen($name) > 255) {
 			throw new ValidationException('validation_failed', '', [['field' => 'name', 'code' => 'validation_failed']]);
@@ -188,7 +188,7 @@ class CycleCountService
 	/** @return array<string, mixed> */
 	public function startCounting(string $actorUid, int $campaignId): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->db->beginTransaction();
 		try {
 			$camp = $this->campaigns->lockById($campaignId, true);
@@ -258,7 +258,7 @@ class CycleCountService
 		bool $abandonUncounted = false,
 		bool $acknowledgeConflicts = false,
 	): array {
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->db->beginTransaction();
 		try {
 			$camp = $this->campaigns->lockById($campaignId, true);

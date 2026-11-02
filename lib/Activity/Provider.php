@@ -13,7 +13,7 @@ use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
 
 /**
- * Wave A3: render low-stock activity events published by {@see LowStockNotifyService}.
+ * Render InventoryCheck events using their original workspace, even in a different tab.
  */
 class Provider implements IProvider
 {
@@ -28,12 +28,18 @@ class Provider implements IProvider
 		if ($event->getApp() !== Application::APP_ID) {
 			throw new UnknownActivityException();
 		}
+		$l = $this->l10nFactory->get(Application::APP_ID, $language !== '' ? $language : null);
+		$params = $event->getSubjectParameters();
+		$workspaceSubject = WorkspaceSubjects::render($l, $event->getSubject(), $params);
+		if ($workspaceSubject !== null) {
+			$event->setParsedSubject($workspaceSubject);
+			$event->setIcon($this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(Application::APP_ID, 'app-dark.svg')));
+			$event->setLink($this->urlGenerator->linkToRouteAbsolute('inventorycheck.page.workspaces'));
+			return $event;
+		}
 		if ($event->getSubject() !== LowStockNotifyService::SUBJECT) {
 			throw new UnknownActivityException();
 		}
-
-		$l = $this->l10nFactory->get(Application::APP_ID, $language !== '' ? $language : null);
-		$params = $event->getSubjectParameters();
 		$name = (string)($params['itemName'] ?? '');
 		$sku = (string)($params['sku'] ?? '');
 		$total = (string)($params['totalQty'] ?? '');
@@ -46,13 +52,13 @@ class Provider implements IProvider
 			[$name, $sku, $total, $reorder],
 		));
 		$event->setIcon($this->urlGenerator->getAbsoluteURL(
-			$this->urlGenerator->imagePath(Application::APP_ID, 'app.svg'),
+			$this->urlGenerator->imagePath(Application::APP_ID, 'app-dark.svg'),
 		));
 		$objectId = $event->getObjectId();
 		if ($objectId > 0) {
 			$event->setLink($this->urlGenerator->linkToRouteAbsolute(
 				'inventorycheck.page.item',
-				['id' => $objectId],
+				array_filter(['id' => $objectId, 'workspaceId' => $params['workspaceId'] ?? null]),
 			));
 		}
 		if ($previousEvent !== null) {

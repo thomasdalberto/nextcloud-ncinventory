@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method string getLabel()
@@ -26,7 +25,7 @@ use OCP\AppFramework\Db\Entity;
  * @method string getCreatedBy()
  * @method void setCreatedBy(string $v)
  */
-class ScanDevice extends Entity
+class ScanDevice extends WorkspaceEntity
 {
 	protected string $label = '';
 	protected ?string $pairCodeHash = null;
@@ -40,6 +39,7 @@ class ScanDevice extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('label', 'string');
 		$this->addType('pairCodeHash', 'string');
 		$this->addType('pairCodeExpires', 'integer');

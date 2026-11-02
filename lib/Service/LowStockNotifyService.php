@@ -9,7 +9,7 @@ use OCA\InventoryCheck\Db\BalanceMapper;
 use OCA\InventoryCheck\Db\ItemMapper;
 use OCA\InventoryCheck\Db\NotifyLogMapper;
 use OCP\Activity\IManager as IActivityManager;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IGroupManager;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
@@ -28,9 +28,9 @@ use Psr\Log\LoggerInterface;
 class LowStockNotifyService
 {
 	public const KEY_NOTIFY_USER_IDS = 'low_stock_notify_user_ids';
-	public const KEY_NOTIFY_GROUP_IDS = 'low_stock_notify_group_ids';
 	public const DEBOUNCE_SECONDS = 86400;
 	public const SUBJECT = 'low_stock';
+	public const TYPE = 'inventory';
 
 	public function __construct(
 		private readonly ItemMapper $items,
@@ -38,13 +38,14 @@ class LowStockNotifyService
 		private readonly NotifyLogMapper $notifyLog,
 		private readonly AccessControlService $access,
 		private readonly Clock $clock,
-		private readonly IConfig $config,
-		private readonly IGroupManager $groupManager,
+		private readonly WorkspaceSettings $settings,
 		private readonly IUserManager $userManager,
 		private readonly INotificationManager $notificationManager,
 		private readonly IActivityManager $activityManager,
 		private readonly IURLGenerator $urlGenerator,
 		private readonly LoggerInterface $logger,
+		private readonly WorkspaceContext $workspace,
+		private readonly \OCA\InventoryCheck\Db\WorkspaceMapper $workspaces,
 	) {
 	}
 
@@ -87,10 +88,11 @@ class LowStockNotifyService
 
 		$recipients = $this->recipientUids();
 		$params = [
+			'workspaceId' => $this->workspace->id(),
 			'itemName' => $item->getName(),
 			'sku' => $item->getSku(),
-			'totalQty' => (string)QtyScale::toDisplay($this->config, $total),
-			'reorderLevel' => (string)QtyScale::toDisplay($this->config, $item->getReorderLevel()),
+			'totalQty' => (string)QtyScale::toDisplay($this->settings, $total),
+			'reorderLevel' => (string)QtyScale::toDisplay($this->settings, $item->getReorderLevel()),
 		];
 		foreach ($recipients as $uid) {
 			try {
@@ -100,7 +102,7 @@ class LowStockNotifyService
 					->setDateTime(new \DateTime('@' . $now))
 					->setObject('item', (string)$itemId)
 					->setSubject(self::SUBJECT, $params)
-					->setLink($this->urlGenerator->linkToRouteAbsolute('inventorycheck.page.item', ['id' => $itemId]));
+					->setLink($this->urlGenerator->linkToRouteAbsolute('inventorycheck.page.item', ['id' => $itemId, 'workspaceId' => $this->workspace->id()]));
 				$this->notificationManager->notify($n);
 			} catch (\Throwable $e) {
 				// best-effort: one recipient's notify failure must not stop the batch
@@ -116,7 +118,7 @@ class LowStockNotifyService
 			try {
 				$event = $this->activityManager->generateEvent();
 				$event->setApp(Application::APP_ID)
-					->setType('inventory')
+					->setType(self::TYPE)
 					->setAuthor('')
 					->setAffectedUser($uid)
 					->setSubject(self::SUBJECT, $params)
@@ -139,25 +141,16 @@ class LowStockNotifyService
 	 */
 	private function recipientUids(): array
 	{
-		$uids = $this->access->getJsonIdList(self::KEY_NOTIFY_USER_IDS);
-		foreach ($this->access->getJsonIdList(self::KEY_NOTIFY_GROUP_IDS) as $gid) {
-			$group = $this->groupManager->get($gid);
-			if ($group === null) {
-				continue;
-			}
-			foreach ($group->getUsers() as $user) {
-				$uids[] = $user->getUID();
-			}
-		}
+		$uids = $this->settings->getList(self::KEY_NOTIFY_USER_IDS);
 		if ($uids === []) {
-			$uids = array_merge(
-				$this->access->getJsonIdList(AccessControlService::KEY_OFFICE_USER_IDS),
-				$this->access->getJsonIdList(AccessControlService::KEY_APP_ADMINS),
-			);
+			$uids = [$this->workspaces->find($this->workspace->id())['owner_uid']];
+			foreach ($this->workspaces->members($this->workspace->id()) as $member) {
+				if ($member['status'] === 'accepted' && $member['role'] === 'admin') { $uids[] = $member['user_id']; }
+			}
 		}
 		$out = [];
 		foreach (array_unique($uids) as $uid) {
-			if ($uid !== '' && $this->userManager->userExists($uid)) {
+			if ($uid !== '' && $this->userManager->userExists($uid) && $this->workspace->canRead($uid)) {
 				$out[] = $uid;
 			}
 		}

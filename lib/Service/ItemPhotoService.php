@@ -28,6 +28,7 @@ class ItemPhotoService
 		private readonly ItemMapper $items,
 		private readonly AccessControlService $access,
 		private readonly Clock $clock,
+		private readonly WorkspaceContext $workspace,
 	) {
 	}
 
@@ -37,7 +38,7 @@ class ItemPhotoService
 	 */
 	public function upload(string $actorUid, int $itemId, array $file): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
 			|| !is_string($file['tmp_name'] ?? null)
 			|| !is_uploaded_file($file['tmp_name'])) {
@@ -92,7 +93,7 @@ class ItemPhotoService
 
 	public function delete(string $actorUid, int $itemId): array
 	{
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->db->beginTransaction();
 		try {
 			$item = $this->items->lockById($itemId, true);
@@ -134,12 +135,17 @@ class ItemPhotoService
 		return ['content' => $content, 'mime' => $mime, 'name' => $name];
 	}
 
+	public static function workspaceFolder(int $id): string
+	{
+		return self::FOLDER . '_ws_' . $id;
+	}
+
 	private function folder(): \OCP\Files\SimpleFS\ISimpleFolder
 	{
 		try {
-			return $this->appData->getFolder(self::FOLDER);
+			return $this->appData->getFolder(self::workspaceFolder($this->workspace->id()));
 		} catch (FilesNotFoundException) {
-			return $this->appData->newFolder(self::FOLDER);
+			return $this->appData->newFolder(self::workspaceFolder($this->workspace->id()));
 		}
 	}
 

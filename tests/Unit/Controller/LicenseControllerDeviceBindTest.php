@@ -4,26 +4,26 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Tests\Unit\Controller;
 
-use OCA\InventoryCheck\Controller\LicenseController;
+use OCA\InventoryCheck\Controller\ScannerController;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\AccessControlService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCP\IRequest;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-final class LicenseControllerDeviceBindTest extends TestCase
+final class ScannerControllerDeviceBindTest extends TestCase
 {
 	public function testCreateDeviceBindsOptionalLocationIds(): void
 	{
 		$request = $this->createMock(IRequest::class);
-		$license = $this->createMock(LicenseService::class);
+		$license = $this->createMock(ScannerService::class);
 		$access = $this->createMock(AccessControlService::class);
 		$acl = $this->createMock(LocationAclService::class);
 
 		$access->method('currentUserId')->willReturn('admin');
-		$access->expects($this->once())->method('requireAppAdmin')->with('admin');
+		$access->expects($this->once())->method('requireWorkspaceAdmin')->with('admin');
 		$request->method('getParam')->willReturnMap([
 			['label', '', 'Van A'],
 			['locationIds', null, [11, 22]],
@@ -40,7 +40,7 @@ final class LicenseControllerDeviceBindTest extends TestCase
 		);
 		$license->expects($this->never())->method('deactivateDevice');
 
-		$controller = new LicenseController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
+		$controller = new ScannerController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
 		$response = $controller->createDevice();
 		$this->assertSame(200, $response->getStatus());
 	}
@@ -48,12 +48,12 @@ final class LicenseControllerDeviceBindTest extends TestCase
 	public function testCreateDeviceSkipsBindWhenLocationIdsEmpty(): void
 	{
 		$request = $this->createMock(IRequest::class);
-		$license = $this->createMock(LicenseService::class);
+		$license = $this->createMock(ScannerService::class);
 		$access = $this->createMock(AccessControlService::class);
 		$acl = $this->createMock(LocationAclService::class);
 
 		$access->method('currentUserId')->willReturn('admin');
-		$access->expects($this->once())->method('requireAppAdmin')->with('admin');
+		$access->expects($this->once())->method('requireWorkspaceAdmin')->with('admin');
 		$request->method('getParam')->willReturnMap([
 			['label', '', 'Van B'],
 			['locationIds', null, []],
@@ -65,19 +65,19 @@ final class LicenseControllerDeviceBindTest extends TestCase
 		]);
 		$acl->expects($this->never())->method('setForSubject');
 
-		$controller = new LicenseController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
+		$controller = new ScannerController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
 		$controller->createDevice();
 	}
 
 	public function testCreateDeviceValidatesLocationsBeforeCreate(): void
 	{
 		$request = $this->createMock(IRequest::class);
-		$license = $this->createMock(LicenseService::class);
+		$license = $this->createMock(ScannerService::class);
 		$access = $this->createMock(AccessControlService::class);
 		$acl = $this->createMock(LocationAclService::class);
 
 		$access->method('currentUserId')->willReturn('admin');
-		$access->expects($this->once())->method('requireAppAdmin')->with('admin');
+		$access->expects($this->once())->method('requireWorkspaceAdmin')->with('admin');
 		$request->method('getParam')->willReturnMap([
 			['label', '', 'Van C'],
 			['locationIds', null, [999]],
@@ -88,7 +88,7 @@ final class LicenseControllerDeviceBindTest extends TestCase
 			]));
 		$license->expects($this->never())->method('createDevice');
 
-		$controller = new LicenseController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
+		$controller = new ScannerController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
 		$this->expectException(ValidationException::class);
 		$controller->createDevice();
 	}
@@ -96,12 +96,12 @@ final class LicenseControllerDeviceBindTest extends TestCase
 	public function testCreateDeviceRollsBackSlotWhenBindFails(): void
 	{
 		$request = $this->createMock(IRequest::class);
-		$license = $this->createMock(LicenseService::class);
+		$license = $this->createMock(ScannerService::class);
 		$access = $this->createMock(AccessControlService::class);
 		$acl = $this->createMock(LocationAclService::class);
 
 		$access->method('currentUserId')->willReturn('admin');
-		$access->expects($this->once())->method('requireAppAdmin')->with('admin');
+		$access->expects($this->once())->method('requireWorkspaceAdmin')->with('admin');
 		$request->method('getParam')->willReturnMap([
 			['label', '', 'Van D'],
 			['locationIds', null, [11]],
@@ -116,7 +116,7 @@ final class LicenseControllerDeviceBindTest extends TestCase
 		$license->expects($this->once())->method('deactivateDevice')->with(77);
 		$acl->expects($this->once())->method('purgeDevice')->with(77);
 
-		$controller = new LicenseController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
+		$controller = new ScannerController($request, $license, $access, $acl, new \Psr\Log\NullLogger());
 		$this->expectException(RuntimeException::class);
 		$controller->createDevice();
 	}

@@ -6,22 +6,22 @@ namespace OCA\InventoryCheck\Db;
 
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<CycleLine>
+ * @extends WorkspaceScopedMapper<CycleLine>
  */
-class CycleLineMapper extends QBMapper
+class CycleLineMapper extends WorkspaceScopedMapper
 {
 	use RowLocking;
 
 	public const TABLE = 'iv_cc_line';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, CycleLine::class);
+		parent::__construct($db, self::TABLE, CycleLine::class, $workspace);
 	}
 
 	public function findById(int $id): CycleLine
@@ -73,6 +73,7 @@ class CycleLineMapper extends QBMapper
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('id', 'cnt'))->from($this->getTableName())
 			->where($qb->expr()->eq('campaign_id', $qb->createNamedParameter($campaignId, IQueryBuilder::PARAM_INT)));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$cnt = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();
@@ -86,6 +87,7 @@ class CycleLineMapper extends QBMapper
 		$qb->select($qb->func()->count('id', 'cnt'))->from($this->getTableName())
 			->where($qb->expr()->eq('campaign_id', $qb->createNamedParameter($campaignId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->isNotNull('qty_counted'));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$cnt = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();
@@ -123,6 +125,7 @@ class CycleLineMapper extends QBMapper
 					$qb->createFunction('COALESCE(b.qty, 0)'),
 				),
 			);
+		$this->workspace->apply($qb, 'l');
 		$res = $qb->executeQuery();
 		$cnt = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();
@@ -140,6 +143,7 @@ class CycleLineMapper extends QBMapper
 			->innerJoin('l', CycleCampaignMapper::TABLE, 'c', $qb->expr()->eq('l.campaign_id', 'c.id'))
 			->where($qb->expr()->eq('l.item_id', $qb->createNamedParameter($itemId, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->neq('c.status', $qb->createNamedParameter('closed')));
+		$this->workspace->apply($qb, 'l');
 		$res = $qb->executeQuery();
 		$cnt = (int)($res->fetchOne() ?: 0);
 		$res->closeCursor();

@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Tests\Unit\Service;
 
-use OCA\InventoryCheck\Db\LicenseStateMapper;
-use OCA\InventoryCheck\Db\MobileSeatMapper;
 use OCA\InventoryCheck\Db\ScanDeviceMapper;
 use OCA\InventoryCheck\Service\Clock;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCP\IConfig;
-use OCP\IDBConnection;
-use OCP\IUserManager;
-use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -56,17 +51,13 @@ final class HashSecretPepperTest extends TestCase
 		return $config;
 	}
 
-	private function service(IConfig $config): LicenseService
+	private function service(IConfig $config): ScannerService
 	{
-		return new LicenseService(
-			$this->createMock(IDBConnection::class),
-			$this->createMock(LicenseStateMapper::class),
-			$this->createMock(MobileSeatMapper::class),
+		return new ScannerService(
 			$this->createMock(ScanDeviceMapper::class),
 			$this->createMock(Clock::class),
-			$this->createMock(IUserManager::class),
-			$this->createMock(ILockingProvider::class),
 			$config,
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class),
 		);
 	}
 }

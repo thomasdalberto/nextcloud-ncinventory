@@ -151,7 +151,7 @@ final class SpecEdgeCasesIntegrationTest extends TestCase
 			$this->config->setAppValue(Application::APP_ID, AccessControlService::KEY_OFFICE_USER_IDS, '[]');
 
 			$acl = Server::get(AccessControlService::class);
-			$this->assertFalse($acl->isOffice($fieldUid));
+			$this->assertFalse($acl->canWrite($fieldUid));
 			$this->assertTrue($acl->canUseApp($fieldUid));
 
 			$suffix = bin2hex(random_bytes(3));

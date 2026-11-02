@@ -64,15 +64,15 @@ runMutations(dirname(__DIR__, 2), 'DirectoryOptionsServiceTest|DirectoryControll
 		'replace' => "'displayName' => \$displayName,",
 	],
 	[
-		'name' => 'searchUsers-requireAppAdmin-dropped',
+		'name' => 'searchUsers-requireWorkspaceAdmin-dropped',
 		'file' => $controller,
-		'search' => "public function searchUsers(): JSONResponse\n\t{\n\t\t\$this->access->requireAppAdmin(\$this->access->currentUserId());",
+		'search' => "public function searchUsers(): JSONResponse\n\t{\n\t\t\$this->access->requireWorkspaceAdmin(\$this->access->currentUserId());",
 		'replace' => "public function searchUsers(): JSONResponse\n\t{",
 	],
 	[
-		'name' => 'searchGroups-requireAppAdmin-dropped',
+		'name' => 'searchGroups-requireWorkspaceAdmin-dropped',
 		'file' => $controller,
-		'search' => "public function searchGroups(): JSONResponse\n\t{\n\t\t\$this->access->requireAppAdmin(\$this->access->currentUserId());",
+		'search' => "public function searchGroups(): JSONResponse\n\t{\n\t\t\$this->access->requireWorkspaceAdmin(\$this->access->currentUserId());",
 		'replace' => "public function searchGroups(): JSONResponse\n\t{",
 	],
 	[

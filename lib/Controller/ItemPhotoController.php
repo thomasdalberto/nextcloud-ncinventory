@@ -36,7 +36,7 @@ class ItemPhotoController extends Controller
 	{
 		// Capability check BEFORE any upload validation/existence work — a
 		// non-office caller must learn nothing about the expected file shape.
-		$this->access->requireOffice($this->access->currentUserId());
+		$this->access->requireWrite($this->access->currentUserId());
 		$file = $this->request->getUploadedFile('file');
 		if (!is_array($file)) {
 			throw new ValidationException('upload_failed', '', [['field' => 'file', 'code' => 'upload_failed']]);

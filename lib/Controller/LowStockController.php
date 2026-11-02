@@ -12,7 +12,7 @@ use OCA\InventoryCheck\Service\QtyScale;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 
 class LowStockController extends Controller
@@ -21,7 +21,7 @@ class LowStockController extends Controller
 		IRequest $request,
 		private readonly LowStockService $lowStock,
 		private readonly AccessControlService $access,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -32,7 +32,7 @@ class LowStockController extends Controller
 		$page = Pagination::parse($this->request->getParam('limit'), $this->request->getParam('offset'));
 		$result = $this->lowStock->list($this->access->currentUserId(), $page['limit'], $page['offset']);
 		$result['data'] = array_map(
-			fn (array $row) => QtyScale::formatLowStock($row, $this->config),
+			fn (array $row) => QtyScale::formatLowStock($row, $this->settings),
 			$result['data'],
 		);
 		return new JSONResponse($result);
@@ -49,7 +49,7 @@ class LowStockController extends Controller
 			$page['offset'],
 		);
 		$result['data'] = array_map(
-			fn (array $row) => QtyScale::formatLowStock($row, $this->config),
+			fn (array $row) => QtyScale::formatLowStock($row, $this->settings),
 			$result['data'],
 		);
 		return new JSONResponse($result);

@@ -4,32 +4,22 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Repair;
 
-use OC\DB\Connection;
-use OC\DB\MigrationService;
+use OCA\InventoryCheck\Service\DemoInventory;
 use OCA\InventoryCheck\Service\ReasonCodes;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 use OCP\Server;
+use OC\DB\Connection;
+use OC\DB\MigrationService;
 
 final class EnsureInventoryCheckSchema implements IRepairStep
 {
 	public const DEMO_SEEDED_KEY = 'demo_seeded';
 
-	/** @var list<array{code: string, name: string, kind: string}> */
-	public const SEED_LOCATIONS = [
-		['code' => 'WH', 'name' => 'Warehouse', 'kind' => 'warehouse'],
-		['code' => 'VAN-1', 'name' => 'Van 1', 'kind' => 'van'],
-		['code' => 'SITE-A', 'name' => 'Site box A', 'kind' => 'site'],
-	];
-
-	/** @var list<array{sku: string, name: string, uom: string, reorder: int}> */
-	public const SEED_ITEMS = [
-		['sku' => 'FILTER-42', 'name' => 'Air filter 42', 'uom' => 'pcs', 'reorder' => 5],
-		['sku' => 'SEAL-10', 'name' => 'Seal kit 10', 'uom' => 'pcs', 'reorder' => 10],
-		['sku' => 'CABLE-5M', 'name' => 'Cable 5 m', 'uom' => 'pcs', 'reorder' => 20],
-	];
+	public const SEED_LOCATIONS = DemoInventory::LOCATIONS;
+	public const SEED_ITEMS = DemoInventory::ITEMS;
 
 	public function __construct(
 		private readonly IDBConnection $connection,
@@ -69,8 +59,7 @@ final class EnsureInventoryCheckSchema implements IRepairStep
 			}
 		}
 
-		$seeded = $this->seedDemo();
-		$this->seedWaveDDefaults();
+		$seeded = 0; // DemoInventory seeds a private workspace once per account.
 		$output->info(sprintf(
 			'InventoryCheck: all %d tables are present; seeded %d demo row(s).',
 			count(UninstallDropTables::TABLES),
@@ -78,74 +67,6 @@ final class EnsureInventoryCheckSchema implements IRepairStep
 		));
 	}
 
-	/** Wave D3: require_adjust_reason = on for installs that never set the key. */
-	private function seedWaveDDefaults(): void
-	{
-		if ($this->config->getAppValue(UninstallDropTables::APP_ID, ReasonCodes::KEY_REQUIRE_ADJUST_REASON, '') === '') {
-			$this->config->setAppValue(UninstallDropTables::APP_ID, ReasonCodes::KEY_REQUIRE_ADJUST_REASON, '1');
-		}
-	}
-
-	private function seedDemo(): int
-	{
-		if ($this->config->getAppValue(UninstallDropTables::APP_ID, self::DEMO_SEEDED_KEY, '0') === '1') {
-			return 0;
-		}
-
-		$inserted = 0;
-		$now = time();
-		foreach (self::SEED_LOCATIONS as $row) {
-			$qb = $this->connection->getQueryBuilder();
-			$qb->select('id')->from('iv_locations')
-				->where($qb->expr()->eq('code', $qb->createNamedParameter($row['code'])));
-			$result = $qb->executeQuery();
-			$exists = $result->fetch() !== false;
-			$result->closeCursor();
-			if ($exists) {
-				continue;
-			}
-			$qb = $this->connection->getQueryBuilder();
-			$qb->insert('iv_locations')->values([
-				'code' => $qb->createNamedParameter($row['code']),
-				'name' => $qb->createNamedParameter($row['name']),
-				'kind' => $qb->createNamedParameter($row['kind']),
-				'active' => $qb->createNamedParameter(true, \PDO::PARAM_BOOL),
-				'created_at' => $qb->createNamedParameter($now, \PDO::PARAM_INT),
-				'updated_at' => $qb->createNamedParameter($now, \PDO::PARAM_INT),
-				'created_by' => $qb->createNamedParameter('system'),
-			]);
-			$qb->executeStatement();
-			$inserted++;
-		}
-		foreach (self::SEED_ITEMS as $row) {
-			$qb = $this->connection->getQueryBuilder();
-			$qb->select('id')->from('iv_items')
-				->where($qb->expr()->eq('sku', $qb->createNamedParameter($row['sku'])));
-			$result = $qb->executeQuery();
-			$exists = $result->fetch() !== false;
-			$result->closeCursor();
-			if ($exists) {
-				continue;
-			}
-			$qb = $this->connection->getQueryBuilder();
-			$qb->insert('iv_items')->values([
-				'sku' => $qb->createNamedParameter($row['sku']),
-				'scan_code' => $qb->createNamedParameter($row['sku']),
-				'name' => $qb->createNamedParameter($row['name']),
-				'uom' => $qb->createNamedParameter($row['uom']),
-				'reorder_level' => $qb->createNamedParameter($row['reorder'], \PDO::PARAM_INT),
-				'active' => $qb->createNamedParameter(true, \PDO::PARAM_BOOL),
-				'created_at' => $qb->createNamedParameter($now, \PDO::PARAM_INT),
-				'updated_at' => $qb->createNamedParameter($now, \PDO::PARAM_INT),
-				'created_by' => $qb->createNamedParameter('system'),
-			]);
-			$qb->executeStatement();
-			$inserted++;
-		}
-
-		$this->config->setAppValue(UninstallDropTables::APP_ID, self::DEMO_SEEDED_KEY, '1');
-		return $inserted;
-	}
 
 	/** @return list<string> */
 	private function missingTables(): array

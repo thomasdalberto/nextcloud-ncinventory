@@ -16,8 +16,8 @@ runMutations(dirname(__DIR__, 2), 'MobilePublicPageContractTest|UserLifecyclePur
 	[
 		'name' => 'csrf-channel-always-passes',
 		'file' => $mobile,
-		'search' => "if (\$this->request->passesCSRFCheck()) {\n\t\t\treturn;\n\t\t}\n\t\tthrow new MobileGateException('auth_required');",
-		'replace' => "if (true || \$this->request->passesCSRFCheck()) {\n\t\t\treturn;\n\t\t}\n\t\tthrow new MobileGateException('auth_required');",
+		'search' => "if (\$this->request->passesCSRFCheck()) {\n\t\t\treturn;\n\t\t}\n\t\tthrow new MobileRequestException('auth_required');",
+		'replace' => "if (true || \$this->request->passesCSRFCheck()) {\n\t\t\treturn;\n\t\t}\n\t\tthrow new MobileRequestException('auth_required');",
 	],
 	[
 		'name' => 'scan-skips-csrf-channel',

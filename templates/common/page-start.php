@@ -16,10 +16,9 @@ $pageTitle = (string)$_['pageTitle'];
 $pageHint = (string)$_['pageHint'];
 $entityId = $_['entityId'] ?? null;
 $currentUserId = (string)$_['currentUserId'];
-$isAppAdmin = !empty($_['isAppAdmin']);
+$isWorkspaceAdmin = !empty($_['isWorkspaceAdmin']);
 $isSystemAdmin = !empty($_['isSystemAdmin']);
-$isOffice = !empty($_['isOffice']);
-$mobileAppStatus = (string)$_['mobileAppStatus'];
+$canWrite = !empty($_['canWrite']);
 $urlsJson = (string)$_['urlsJson'];
 $allowNegativeStock = !empty($_['allowNegativeStock']);
 $locationReorderHintEnabled = !empty($_['locationReorderHintEnabled']);
@@ -30,7 +29,7 @@ $locationAclEnabled = !empty($_['locationAclEnabled']);
 $productLookupEnabled = !empty($_['productLookupEnabled']);
 $productLookupAutofire = !empty($_['productLookupAutofire']);
 $timezone = (string)($_['timezone'] ?? 'UTC');
-$roleLabel = (string)($_['roleLabel'] ?? ($isAppAdmin ? $l->t('Administrator') : ($isOffice ? $l->t('Office') : $l->t('Field'))));
+$roleLabel = (string)($_['roleLabel'] ?? ($isWorkspaceAdmin ? $l->t('Administrator') : ($canWrite ? $l->t('Office') : $l->t('Field'))));
 $htmlLang = str_replace('_', '-', $l->getLanguageCode());
 $settingsSection = (string)($_['settingsSection'] ?? '');
 
@@ -58,13 +57,15 @@ require __DIR__ . '/navigation.php';
 ?>
 <div id="app-content" class="iv-app iv-app--<?php p($pageId); ?>"
 	lang="<?php p($htmlLang); ?>"
+	data-iv-workspace-id="<?php p((string)($_['workspace']['id'] ?? '')); ?>"
+	data-iv-workspace-role="<?php p((string)($_['workspace']['role'] ?? '')); ?>"
 	data-iv-page="<?php p($pageId); ?>"
 	<?php if ($entityId !== null): ?>data-iv-entity-id="<?php p((string)$entityId); ?>"<?php endif; ?>
 	<?php if ($settingsSection !== ''): ?>data-iv-settings-section="<?php p($settingsSection); ?>"<?php endif; ?>
 	data-iv-current-user="<?php p($currentUserId); ?>"
-	data-iv-is-app-admin="<?php p($isAppAdmin ? '1' : '0'); ?>"
+	data-iv-is-workspace-admin="<?php p($isWorkspaceAdmin ? '1' : '0'); ?>"
 	data-iv-is-system-admin="<?php p($isSystemAdmin ? '1' : '0'); ?>"
-	data-iv-is-office="<?php p($isOffice ? '1' : '0'); ?>"
+	data-iv-can-write="<?php p($canWrite ? '1' : '0'); ?>"
 	data-iv-allow-negative="<?php p($allowNegativeStock ? '1' : '0'); ?>"
 	data-iv-location-reorder-hint="<?php p($locationReorderHintEnabled ? '1' : '0'); ?>"
 	data-iv-require-adjust-reason="<?php p($requireAdjustReason ? '1' : '0'); ?>"
@@ -73,7 +74,6 @@ require __DIR__ . '/navigation.php';
 	data-iv-location-acl="<?php p($locationAclEnabled ? '1' : '0'); ?>"
 	data-iv-product-lookup="<?php p($productLookupEnabled ? '1' : '0'); ?>"
 	data-iv-product-lookup-autofire="<?php p($productLookupAutofire ? '1' : '0'); ?>"
-	data-iv-mobile-app-status="<?php p($mobileAppStatus); ?>"
 	data-iv-timezone="<?php p($timezone); ?>"
 	data-iv-urls="<?php p($urlsJson); ?>">
 	<a class="iv-skip-link" href="#iv-main-content"><?php p($l->t('Skip to main content')); ?></a>
@@ -135,6 +135,11 @@ require __DIR__ . '/navigation.php';
 				<div id="iv-page-actions" class="iv-page-header__actions" aria-live="polite"></div>
 			</div>
 			<div class="iv-scope-strip" aria-label="<?php p($l->t('Active session context')); ?>">
+				<?php if (!empty($_['workspace'])): ?>
+				<span class="iv-scope-strip__label"><?php p($l->t('Workspace')); ?></span>
+				<span class="iv-scope-strip__value"><?php p($_['workspace']['name']); ?></span>
+				<span class="iv-scope-strip__sep" aria-hidden="true">·</span>
+				<?php endif; ?>
 				<span class="iv-scope-strip__label"><?php p($l->t('Role')); ?></span>
 				<span class="iv-badge iv-badge--neutral iv-scope-strip__badge"><?php p($roleLabel); ?></span>
 				<span class="iv-scope-strip__sep" aria-hidden="true">·</span>

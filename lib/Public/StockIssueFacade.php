@@ -16,7 +16,7 @@ use OCA\InventoryCheck\Service\FlangeService;
 use OCA\InventoryCheck\Service\MovementService;
 use OCA\InventoryCheck\Service\QtyScale;
 use OCP\DB\Exception as DbException;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IDBConnection;
 
 /**
@@ -45,7 +45,7 @@ class StockIssueFacade
 		private readonly MovementMapper $movementMapper,
 		private readonly ItemMapper $items,
 		private readonly LocationMapper $locations,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 	) {
 	}
 
@@ -61,11 +61,11 @@ class StockIssueFacade
 		// not only FlangeController HTTP. Otherwise MN/PC could post stock
 		// while Settings shows the flange as off (split-brain).
 		if ($req->refType === StockIssueRequest::REF_MAINT_WO
-			&& $this->config->getAppValue(Application::APP_ID, FlangeService::KEY_MAINT_ENABLED, '0') !== '1') {
+			&& $this->settings->get(FlangeService::KEY_MAINT_ENABLED, '0') !== '1') {
 			return FacadeResult::failure('flange_disabled', 'MaintenanceCheck flange is disabled in InventoryCheck.');
 		}
 		if ($req->refType === StockIssueRequest::REF_PROJECT
-			&& $this->config->getAppValue(Application::APP_ID, FlangeService::KEY_PROJECT_ENABLED, '0') !== '1') {
+			&& $this->settings->get(FlangeService::KEY_PROJECT_ENABLED, '0') !== '1') {
 			return FacadeResult::failure('flange_disabled', 'ProjectCheck flange is disabled in InventoryCheck.');
 		}
 		if ($req->refId <= 0) {
@@ -82,12 +82,12 @@ class StockIssueFacade
 				continue; // unmapped kit lines ignored by F6
 			}
 			try {
-				$storageQty = QtyScale::toStorage($this->config, $line['qty'] ?? 0);
+				$storageQty = QtyScale::toStorage($this->settings, $line['qty'] ?? 0);
 			} catch (ValidationException) {
 				return FacadeResult::failure('validation_failed', 'qty is not a valid display quantity.', ['sku' => $sku]);
 			}
 			// At least one display unit (1 pcs / 1.000 when fractional).
-			if ($storageQty < QtyScale::serialUnit($this->config)) {
+			if ($storageQty < QtyScale::serialUnit($this->settings)) {
 				return FacadeResult::failure('validation_failed', 'qty must be >= 1.', ['sku' => $sku]);
 			}
 			$normalized[$sku] = ($normalized[$sku] ?? 0) + $storageQty;
@@ -137,7 +137,7 @@ class StockIssueFacade
 				$mov = $priorBySku[$sku];
 				$replay[] = [
 					'sku' => $sku,
-					'qty' => QtyScale::toDisplay($this->config, $row['qty']),
+					'qty' => QtyScale::toDisplay($this->settings, $row['qty']),
 					'movementId' => (int)$mov->getId(),
 					'locationId' => (int)$mov->getLocationId(),
 				];
@@ -211,7 +211,7 @@ class StockIssueFacade
 				if ($existing !== null) {
 					$posted[] = [
 						'sku' => $row['sku'],
-						'qty' => QtyScale::toDisplay($this->config, $row['qty']),
+						'qty' => QtyScale::toDisplay($this->settings, $row['qty']),
 						'movementId' => (int)$existing->getId(),
 						'locationId' => (int)$existing->getLocationId(),
 					];
@@ -230,7 +230,7 @@ class StockIssueFacade
 				$mov = $result['movements'][0] ?? null;
 				$posted[] = [
 					'sku' => $row['sku'],
-					'qty' => QtyScale::toDisplay($this->config, $row['qty']),
+					'qty' => QtyScale::toDisplay($this->settings, $row['qty']),
 					'movementId' => (int)($mov['id'] ?? 0),
 					'locationId' => $locationId,
 				];
@@ -294,7 +294,7 @@ class StockIssueFacade
 			}
 			$posted[] = [
 				'sku' => (string)$item->getSku(),
-				'qty' => QtyScale::toDisplay($this->config, abs((int)$mov->getQtyDelta())),
+				'qty' => QtyScale::toDisplay($this->settings, abs((int)$mov->getQtyDelta())),
 				'movementId' => (int)$mov->getId(),
 				'locationId' => (int)$mov->getLocationId(),
 			];
@@ -344,7 +344,7 @@ class StockIssueFacade
 			if ($req->locationId !== null && $req->locationId > 0) {
 				return $req->locationId;
 			}
-			$raw = $this->config->getAppValue(Application::APP_ID, FlangeService::KEY_DEFAULT_ISSUE_LOCATION, '');
+			$raw = $this->settings->get(FlangeService::KEY_DEFAULT_ISSUE_LOCATION, '');
 			if ($raw === '' || !ctype_digit($raw)) {
 				return null;
 			}

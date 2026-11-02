@@ -38,7 +38,7 @@ class FlangeController extends Controller
 	#[NoAdminRequired]
 	public function status(): JSONResponse
 	{
-		$this->access->requireAppAdmin($this->access->currentUserId());
+		$this->access->requireWorkspaceAdmin($this->access->currentUserId());
 		return new JSONResponse($this->flange->status());
 	}
 
@@ -72,7 +72,7 @@ class FlangeController extends Controller
 	public function saveSettings(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		$p = $this->request->getParams();
 		if (array_key_exists('maintFlangeEnabled', $p)) {
 			$this->flange->setMaintEnabled(BoolParam::parse($p['maintFlangeEnabled'], 'maintFlangeEnabled'));
@@ -106,7 +106,7 @@ class FlangeController extends Controller
 	public function retryInvoicePush(): JSONResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireOffice($uid);
+		$this->access->requireWrite($uid);
 		$done = $this->flange->retryInvoicePushes($uid);
 		return new JSONResponse(['ok' => true, 'pushed' => $done, 'pending' => (int) ($this->flange->status()['invoicePushPending'] ?? 0)]);
 	}

@@ -18,11 +18,9 @@ final class MutatingCsrfContractTest extends TestCase
 	 * Kept honest by {@see testEveryMutatingRouteIsPinned}.
 	 */
 	private const MUTATING = [
-		'create', 'update', 'destroy',
+		'create', 'update', 'destroy', 'invite', 'removeMember', 'respond', 'notificationAction',
 		'receive', 'issue', 'transfer', 'adjust', 'scan',
-		'saveAccess', 'saveOffice', 'saveNotify', 'saveFractional', 'saveWaveD', 'saveLocationAcl',
-		'saveProductLookup',
-		'apply', 'remove', 'assignSeat', 'removeSeat',
+		'saveStock', 'saveNotify', 'saveFractional', 'saveWaveD', 'saveLocationAcl', 'changeRole', 'save',
 		'createDevice', 'regeneratePairCode', 'removeDevice',
 		'start', 'setCount', 'close',
 		'dryRun', 'commit',

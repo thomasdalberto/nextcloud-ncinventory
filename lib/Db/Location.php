@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\Db;
 
-use OCP\AppFramework\Db\Entity;
 
 /**
  * @method string getCode()
@@ -24,7 +23,7 @@ use OCP\AppFramework\Db\Entity;
  * @method string getCreatedBy()
  * @method void setCreatedBy(string $v)
  */
-class Location extends Entity
+class Location extends WorkspaceEntity
 {
 	protected string $code = '';
 	protected string $name = '';
@@ -37,6 +36,7 @@ class Location extends Entity
 
 	public function __construct()
 	{
+		parent::__construct();
 		$this->addType('code', 'string');
 		$this->addType('name', 'string');
 		$this->addType('kind', 'string');

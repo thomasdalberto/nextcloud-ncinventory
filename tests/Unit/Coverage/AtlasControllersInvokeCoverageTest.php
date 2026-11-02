@@ -14,7 +14,8 @@ use OCA\InventoryCheck\Controller\FlangeController;
 use OCA\InventoryCheck\Controller\ImportController;
 use OCA\InventoryCheck\Controller\ItemController;
 use OCA\InventoryCheck\Controller\ItemPhotoController;
-use OCA\InventoryCheck\Controller\LicenseController;
+use OCA\InventoryCheck\Controller\ScannerController;
+use OCA\InventoryCheck\Controller\AdministrationController;
 use OCA\InventoryCheck\Controller\LocationController;
 use OCA\InventoryCheck\Controller\LowStockController;
 use OCA\InventoryCheck\Controller\MobileController;
@@ -31,12 +32,12 @@ use OCA\InventoryCheck\Service\DirectoryOptionsService;
 use OCA\InventoryCheck\Service\FlangeService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationService;
 use OCA\InventoryCheck\Service\LowStockService;
-use OCA\InventoryCheck\Service\MobileGateService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementService;
 use OCA\InventoryCheck\Service\SettingsSectionCatalog;
 use OCP\AppFramework\Http\Response;
@@ -79,7 +80,8 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 		FlangeController::class,
 		ConfigController::class,
 		DirectoryController::class,
-		LicenseController::class,
+		ScannerController::class,
+		AdministrationController::class,
 		MobileController::class,
 	];
 
@@ -115,7 +117,7 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 		self::assertContains('ItemController::create', $invoked);
 		self::assertContains('MovementController::scan', $invoked);
 		self::assertContains('MobileController::bootstrap', $invoked);
-		self::assertContains('LicenseController::show', $invoked);
+		self::assertContains('ScannerController::show', $invoked);
 		self::assertContains('CycleCountController::close', $invoked);
 	}
 
@@ -153,7 +155,7 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 			self::assertTrue(true);
 		}
 
-		$deniedLic = $this->buildController(LicenseController::class, allowAdmin: false);
+		$deniedLic = $this->buildController(ScannerController::class, allowAdmin: false);
 		try {
 			$deniedLic->apply();
 			self::fail('expected PermissionDeniedException');
@@ -244,6 +246,13 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 			return $this->byType[$key];
 		}
 
+		if ($typeName === \OCA\InventoryCheck\Service\WorkspaceContext::class) {
+			$mock = $this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class);
+			$mock->method('current')->willReturn(['id' => 1, 'name' => 'Test workspace', 'role' => 'owner', 'status' => 'accepted']);
+			$mock->method('id')->willReturn(1);
+			return $mock;
+		}
+
 		if ($typeName === AccessControlService::class) {
 			$mock = $this->createMock(AccessControlService::class);
 			$mock->method('currentUserId')->willReturnCallback(
@@ -254,18 +263,17 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 					return 'alice';
 				}
 			);
-			$mock->method('isAppAdmin')->willReturn($allowAdmin);
-			$mock->method('isOffice')->willReturn($allowOffice);
+			$mock->method('isWorkspaceAdmin')->willReturn($allowAdmin);
+			$mock->method('canWrite')->willReturn($allowOffice);
 			$mock->method('isSystemAdmin')->willReturn($allowAdmin);
-			$mock->method('canUseApp')->willReturn($allowUse);
-			$mock->method('requireAppAdmin')->willReturnCallback(
+			$mock->method('requireWorkspaceAdmin')->willReturnCallback(
 				static function () use ($allowAdmin): void {
 					if (!$allowAdmin) {
 						throw new PermissionDeniedException('admin');
 					}
 				}
 			);
-			$mock->method('requireOffice')->willReturnCallback(
+			$mock->method('requireWrite')->willReturnCallback(
 				static function () use ($allowOffice): void {
 					if (!$allowOffice) {
 						throw new PermissionDeniedException('office');
@@ -414,25 +422,17 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 			return $mock;
 		}
 
-		if ($typeName === LicenseService::class) {
-			$mock = $this->createMock(LicenseService::class);
-			$mock->method('status')->willReturn(['ok' => true, 'licensed' => false]);
-			$mock->method('apply')->willReturn(['ok' => true]);
-			$mock->method('remove')->willReturn(['ok' => true]);
-			$mock->method('listSeats')->willReturn(['seats' => [], 'total' => 0]);
-			$mock->method('assignSeat')->willReturn(['seat' => ['userId' => 'bob']]);
-			$mock->method('removeSeat')->willReturnCallback(static function (): void {});
-			$mock->method('listDevices')->willReturn(['devices' => [], 'total' => 0]);
-			$mock->method('createDevice')->willReturn(['id' => 1, 'pairCode' => 'ABC']);
-			$mock->method('regeneratePairCode')->willReturn(['id' => 1, 'pairCode' => 'XYZ']);
-			$mock->method('deactivateDevice')->willReturnCallback(static function (): void {});
-			$this->byType[$key] = $mock;
+		if ($typeName === ScannerService::class) {
+			$mock = $this->createMock(ScannerService::class);
+			$mock->method('listDevices')->willReturn(['data' => [], 'total' => 0]);
+			$mock->method('createDevice')->willReturn(['device' => ['id' => 1], 'pairCode' => 'ABCD2345']);
+			$mock->method('regeneratePairCode')->willReturn(['device' => ['id' => 1], 'pairCode' => 'ABCD2345']);
 			return $mock;
 		}
 
-		if ($typeName === MobileGateService::class) {
-			$mock = $this->createMock(MobileGateService::class);
-			$mock->method('assertGate')->willReturnCallback(static function (): void {});
+		if ($typeName === MobileAccessService::class) {
+			$mock = $this->createMock(MobileAccessService::class);
+			$mock->method('requireCaller')->willReturnCallback(static function (): void {});
 			$mock->method('bootstrap')->willReturn(['ok' => true, 'licensed' => false]);
 			$this->byType[$key] = $mock;
 			return $mock;
@@ -587,6 +587,9 @@ final class AtlasControllersInvokeCoverageTest extends TestCase
 	{
 		$req = $this->createMock(IRequest::class);
 		$params = [
+			'invitationId' => 12,
+			'decision' => 'view',
+			'token' => 'fixture-token',
 			'q' => 'wi',
 			'limit' => 50,
 			'offset' => 0,

@@ -10,7 +10,7 @@ use OCA\InventoryCheck\Db\ScanDeviceMapper;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -36,33 +36,34 @@ class LocationAclService
 
 	public function __construct(
 		private readonly IDBConnection $db,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly AccessControlService $access,
 		private readonly IGroupManager $groupManager,
 		private readonly IUserManager $userManager,
 		private readonly LocationMapper $locations,
 		private readonly ScanDeviceMapper $devices,
+		private readonly WorkspaceContext $workspace,
 	) {
 	}
 
 	public function isEnabled(): bool
 	{
-		return $this->config->getAppValue(Application::APP_ID, self::KEY_ENABLED, '0') === '1';
+		return $this->settings->get(self::KEY_ENABLED, '0') === '1';
 	}
 
 	public function setEnabled(bool $enabled): void
 	{
-		$this->config->setAppValue(Application::APP_ID, self::KEY_ENABLED, $enabled ? '1' : '0');
+		$this->settings->set(self::KEY_ENABLED, $enabled ? '1' : '0');
 	}
 
 	public function isDevicesStrict(): bool
 	{
-		return $this->config->getAppValue(Application::APP_ID, self::KEY_DEVICES_STRICT, '0') === '1';
+		return $this->settings->get(self::KEY_DEVICES_STRICT, '0') === '1';
 	}
 
 	public function setDevicesStrict(bool $strict): void
 	{
-		$this->config->setAppValue(Application::APP_ID, self::KEY_DEVICES_STRICT, $strict ? '1' : '0');
+		$this->settings->set(self::KEY_DEVICES_STRICT, $strict ? '1' : '0');
 	}
 
 	/**
@@ -78,7 +79,7 @@ class LocationAclService
 		if (str_starts_with($uid, 'device:')) {
 			return $this->visibleLocationIdsForDevice($uid);
 		}
-		if ($this->access->isOffice($uid)) {
+		if ($this->access->canWrite($uid)) {
 			return null;
 		}
 		$ids = [];
@@ -86,6 +87,7 @@ class LocationAclService
 		$qb->select('location_id')->from('iv_loc_acl')
 			->where($qb->expr()->eq('subject_type', $qb->createNamedParameter(self::TYPE_USER)))
 			->andWhere($qb->expr()->eq('subject_id', $qb->createNamedParameter($uid)));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		while (($row = $res->fetch()) !== false) {
 			$ids[] = (int)$row['location_id'];
@@ -96,6 +98,7 @@ class LocationAclService
 		$gQb = $this->db->getQueryBuilder();
 		$gQb->selectDistinct('subject_id')->from('iv_loc_acl')
 			->where($gQb->expr()->eq('subject_type', $gQb->createNamedParameter(self::TYPE_GROUP)));
+		$this->workspace->apply($gQb);
 		$gRes = $gQb->executeQuery();
 		while (($grow = $gRes->fetch()) !== false) {
 			$gid = (string)$grow['subject_id'];
@@ -109,6 +112,7 @@ class LocationAclService
 			$qb2->select('location_id')->from('iv_loc_acl')
 				->where($qb2->expr()->eq('subject_type', $qb2->createNamedParameter(self::TYPE_GROUP)))
 				->andWhere($qb2->expr()->in('subject_id', $qb2->createNamedParameter($gids, IQueryBuilder::PARAM_STR_ARRAY)));
+			$this->workspace->apply($qb2);
 			$r2 = $qb2->executeQuery();
 			while (($row = $r2->fetch()) !== false) {
 				$ids[] = (int)$row['location_id'];
@@ -137,6 +141,7 @@ class LocationAclService
 		$qb->select('location_id')->from('iv_loc_acl')
 			->where($qb->expr()->eq('subject_type', $qb->createNamedParameter(self::TYPE_DEVICE)))
 			->andWhere($qb->expr()->eq('subject_id', $qb->createNamedParameter($subjectId)));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		while (($row = $res->fetch()) !== false) {
 			$ids[] = (int)$row['location_id'];
@@ -233,8 +238,9 @@ class LocationAclService
 		}
 		$del = $this->db->getQueryBuilder();
 		$del->delete('iv_loc_acl')
-			->where($del->expr()->eq('location_id', $del->createNamedParameter($locationId, IQueryBuilder::PARAM_INT)))
-			->executeStatement();
+			->where($del->expr()->eq('location_id', $del->createNamedParameter($locationId, IQueryBuilder::PARAM_INT)));
+		$this->workspace->apply($del);
+		$del->executeStatement();
 	}
 
 	/** Drop grants when a scanner slot is deleted. */
@@ -246,8 +252,9 @@ class LocationAclService
 		$del = $this->db->getQueryBuilder();
 		$del->delete('iv_loc_acl')
 			->where($del->expr()->eq('subject_type', $del->createNamedParameter(self::TYPE_DEVICE)))
-			->andWhere($del->expr()->eq('subject_id', $del->createNamedParameter((string)$deviceId)))
-			->executeStatement();
+			->andWhere($del->expr()->eq('subject_id', $del->createNamedParameter((string)$deviceId)));
+		$this->workspace->apply($del);
+		$del->executeStatement();
 	}
 
 	/**
@@ -299,11 +306,13 @@ class LocationAclService
 			$del = $this->db->getQueryBuilder();
 			$del->delete('iv_loc_acl')
 				->where($del->expr()->eq('subject_type', $del->createNamedParameter($type)))
-				->andWhere($del->expr()->eq('subject_id', $del->createNamedParameter($id)))
-				->executeStatement();
+				->andWhere($del->expr()->eq('subject_id', $del->createNamedParameter($id)));
+			$this->workspace->apply($del);
+			$del->executeStatement();
 			foreach ($clean as $locId) {
 				$ins = $this->db->getQueryBuilder();
 				$ins->insert('iv_loc_acl')->values([
+					'workspace_id' => $ins->createNamedParameter($this->workspace->id(), IQueryBuilder::PARAM_INT),
 					'subject_type' => $ins->createNamedParameter($type),
 					'subject_id' => $ins->createNamedParameter($id),
 					'location_id' => $ins->createNamedParameter($locId, IQueryBuilder::PARAM_INT),
@@ -328,6 +337,7 @@ class LocationAclService
 			->orderBy('subject_type', 'ASC')
 			->addOrderBy('subject_id', 'ASC')
 			->addOrderBy('location_id', 'ASC');
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$out = [];
 		while (($row = $res->fetch()) !== false) {
@@ -347,7 +357,7 @@ class LocationAclService
 	 */
 	public function replaceAll(string $actorUid, array $rows): array
 	{
-		$this->access->requireAppAdmin($actorUid);
+		$this->access->requireWorkspaceAdmin($actorUid);
 		$clean = [];
 		foreach ($rows as $row) {
 			$type = strtolower(trim((string)($row['subjectType'] ?? $row['subject_type'] ?? '')));
@@ -368,10 +378,13 @@ class LocationAclService
 		$this->db->beginTransaction();
 		try {
 			$del = $this->db->getQueryBuilder();
-			$del->delete('iv_loc_acl')->executeStatement();
+			$del->delete('iv_loc_acl');
+			$this->workspace->apply($del);
+			$del->executeStatement();
 			foreach ($clean as [$type, $id, $locId]) {
 				$ins = $this->db->getQueryBuilder();
 				$ins->insert('iv_loc_acl')->values([
+					'workspace_id' => $ins->createNamedParameter($this->workspace->id(), IQueryBuilder::PARAM_INT),
 					'subject_type' => $ins->createNamedParameter($type),
 					'subject_id' => $ins->createNamedParameter($id),
 					'location_id' => $ins->createNamedParameter($locId, IQueryBuilder::PARAM_INT),
@@ -406,7 +419,10 @@ class LocationAclService
 				]);
 			}
 			try {
-				$this->devices->findById((int)$id);
+				$device = $this->devices->findById((int)$id);
+				if ($device->getWorkspaceId() !== $this->workspace->id()) {
+					throw new NotFoundException();
+				}
 			} catch (NotFoundException) {
 				throw new ValidationException('unknown_device', 'Unknown device: ' . $id, [
 					['field' => 'subjectId', 'code' => 'unknown_device'],

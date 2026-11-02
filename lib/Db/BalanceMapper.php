@@ -5,19 +5,19 @@ declare(strict_types=1);
 namespace OCA\InventoryCheck\Db;
 
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<Balance>
+ * @extends WorkspaceScopedMapper<Balance>
  */
-class BalanceMapper extends QBMapper
+class BalanceMapper extends WorkspaceScopedMapper
 {
 	public const TABLE = 'iv_balances';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, Balance::class);
+		parent::__construct($db, self::TABLE, Balance::class, $workspace);
 	}
 
 	public function findPair(int $itemId, int $locationId): ?Balance
@@ -42,10 +42,12 @@ class BalanceMapper extends QBMapper
 	 */
 	public function ensureZeroRow(int $itemId, int $locationId, int $now): void
 	{
+		$this->workspace->requireWrite();
 		if ($this->findPair($itemId, $locationId) !== null) {
 			return;
 		}
 		$this->db->insertIgnoreConflict($this->getTableName(), [
+			'workspace_id' => $this->workspace->id(),
 			'item_id' => $itemId,
 			'location_id' => $locationId,
 			'qty' => 0,
@@ -81,6 +83,7 @@ class BalanceMapper extends QBMapper
 				->where($qb->expr()->eq('item_id', $qb->createNamedParameter($p['itemId'], \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('location_id', $qb->createNamedParameter($p['locationId'], \PDO::PARAM_INT)));
 
+			$this->workspace->apply($qb);
 			$sql = $qb->getSQL();
 			// SQLite (rare in prod) ignores FOR UPDATE; MySQL/Pg honour it.
 			if ($this->db->getDatabaseProvider() !== IDBConnection::PLATFORM_SQLITE) {
@@ -105,6 +108,7 @@ class BalanceMapper extends QBMapper
 	{
 		$b = new Balance();
 		$b->setId((int)$row['id']);
+		$b->setWorkspaceId((int)$row['workspace_id']);
 		$b->setItemId((int)$row['item_id']);
 		$b->setLocationId((int)$row['location_id']);
 		$b->setQty((int)$row['qty']);
@@ -157,6 +161,7 @@ class BalanceMapper extends QBMapper
 		$countQb = $this->db->getQueryBuilder();
 		$countQb->select($countQb->func()->count('id', 'cnt'));
 		$apply($countQb);
+		$this->workspace->apply($countQb);
 		$result = $countQb->executeQuery();
 		$total = (int)($result->fetchOne() ?: 0);
 		$result->closeCursor();
@@ -194,6 +199,7 @@ class BalanceMapper extends QBMapper
 				$qb->createNamedParameter($locationIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY),
 			));
 		}
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$out = [];
 		while ($row = $result->fetch()) {
@@ -213,6 +219,7 @@ class BalanceMapper extends QBMapper
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('item_id', 'location_id', 'qty')->from($this->getTableName());
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$out = [];
 		while ($row = $result->fetch()) {

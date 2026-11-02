@@ -24,7 +24,7 @@ final class ActivityProviderTest extends TestCase
 		$factory = $this->createMock(IFactory::class);
 		$factory->method('get')->willReturn($l);
 		$url = $this->createMock(IURLGenerator::class);
-		$url->method('imagePath')->willReturn('/apps/inventorycheck/img/app.svg');
+		$url->expects(self::once())->method('imagePath')->with(Application::APP_ID, 'app-dark.svg')->willReturn('/apps/inventorycheck/img/app-dark.svg');
 		$url->method('getAbsoluteURL')->willReturnCallback(static fn (string $p): string => 'https://nc.test' . $p);
 		$url->method('linkToRouteAbsolute')->willReturn('https://nc.test/item/7');
 
@@ -40,7 +40,7 @@ final class ActivityProviderTest extends TestCase
 		$event->method('getObjectId')->willReturn(7);
 		$event->expects(self::once())->method('setParsedSubject')->willReturnSelf();
 		$event->expects(self::once())->method('setParsedMessage')->willReturnSelf();
-		$event->expects(self::once())->method('setIcon')->willReturnSelf();
+		$event->expects(self::once())->method('setIcon')->with('https://nc.test/apps/inventorycheck/img/app-dark.svg')->willReturnSelf();
 		$event->expects(self::once())->method('setLink')->willReturnSelf();
 
 		$provider = new Provider($factory, $url);

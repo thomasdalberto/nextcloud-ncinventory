@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace OCA\InventoryCheck\BackgroundJob;
 
 use OCA\InventoryCheck\AppInfo\Application;
+use OCA\InventoryCheck\Db\WorkspaceMapper;
 use OCA\InventoryCheck\Service\FlangeService;
 use OCA\InventoryCheck\Service\InvoicePushService;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
 use OCP\IConfig;
@@ -23,6 +25,8 @@ class InvoicePushRetryJob extends TimedJob
 		ITimeFactory $time,
 		private readonly InvoicePushService $pushes,
 		private readonly IConfig $config,
+		private readonly WorkspaceContext $workspace,
+		private readonly WorkspaceMapper $workspaces,
 	) {
 		parent::__construct($time);
 		$this->setInterval(15 * 60);
@@ -36,6 +40,8 @@ class InvoicePushRetryJob extends TimedJob
 		if ($this->config->getAppValue(Application::APP_ID, FlangeService::KEY_INVOICE_ENABLED, '0') !== '1') {
 			return;
 		}
-		$this->pushes->drain();
+		foreach ($this->workspaces->allIds() as $id) {
+			$this->workspace->runAsSystem($id, fn () => $this->pushes->drain());
+		}
 	}
 }

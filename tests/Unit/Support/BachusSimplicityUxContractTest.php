@@ -207,7 +207,7 @@ final class BachusSimplicityUxContractTest extends TestCase
 		self::assertStringContainsString('Add favourite', $this->js);
 		self::assertStringContainsString('Remove favourite', $this->js);
 		self::assertStringNotContainsString('★ Remove from favourites', $this->js);
-		self::assertStringContainsString('primary: !(ctx.isOffice || ctx.isAppAdmin)', $this->js);
+		self::assertStringContainsString('primary: !ctx.canWrite', $this->js);
 		self::assertStringContainsString('locs.length === 1', $this->js);
 		self::assertStringContainsString('aria-pressed', $this->js);
 		self::assertStringContainsString('function createLocationChooser', $this->js);
@@ -265,7 +265,7 @@ final class BachusSimplicityUxContractTest extends TestCase
 		self::assertStringContainsString("withSettingsHowTo(ctx, 'office'", $this->js);
 		self::assertStringContainsString('text: tr(\'Hide tips\')', $this->js);
 		self::assertStringContainsString('How this item page works', $this->js);
-		self::assertStringContainsString('How office rights work', $this->js);
+		self::assertStringContainsString('Stock policy', $this->js);
 		self::assertStringContainsString('Balances, receive or issue, and print the label', $this->pageController);
 		self::assertStringContainsString('How a stocktake works', $this->js);
 		self::assertStringContainsString('How booking works', $this->js);
@@ -347,7 +347,7 @@ final class BachusSimplicityUxContractTest extends TestCase
 			'By default every logged-in user can open InventoryCheck',
 			$this->js,
 		);
-		self::assertStringContainsString('Administrators always keep access.', $this->js);
+		self::assertStringContainsString('Workspace owners manage editing permissions in Workspaces.', $this->js);
 		self::assertStringContainsString('Download SVG', $this->js);
 	}
 

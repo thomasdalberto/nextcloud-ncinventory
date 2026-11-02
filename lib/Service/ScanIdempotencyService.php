@@ -29,6 +29,7 @@ class ScanIdempotencyService
 	public function __construct(
 		private readonly IDBConnection $db,
 		private readonly Clock $clock,
+		private readonly WorkspaceContext $workspace,
 	) {
 	}
 
@@ -117,10 +118,12 @@ class ScanIdempotencyService
 	 */
 	public function tryClaim(string $actorUid, string $requestId, ?string $payloadHash = null): bool
 	{
+		$this->workspace->requireWrite();
 		$now = $this->clock->now();
 		$qb = $this->db->getQueryBuilder();
 		$qb->insert(self::TABLE)
 			->values([
+				'workspace_id' => $qb->createNamedParameter($this->workspace->id(), IQueryBuilder::PARAM_INT),
 				'actor_uid' => $qb->createNamedParameter($actorUid),
 				'request_id' => $qb->createNamedParameter($requestId),
 				'status' => $qb->createNamedParameter(self::STATUS_PENDING),
@@ -145,6 +148,7 @@ class ScanIdempotencyService
 	 */
 	public function complete(string $actorUid, string $requestId, array $response): void
 	{
+		$this->workspace->requireWrite();
 		$json = json_encode($response, JSON_THROW_ON_ERROR);
 		$now = $this->clock->now();
 		$qb = $this->db->getQueryBuilder();
@@ -154,17 +158,20 @@ class ScanIdempotencyService
 			->set('completed_at', $qb->createNamedParameter($now, IQueryBuilder::PARAM_INT))
 			->where($qb->expr()->eq('actor_uid', $qb->createNamedParameter($actorUid)))
 			->andWhere($qb->expr()->eq('request_id', $qb->createNamedParameter($requestId)));
+		$this->workspace->apply($qb);
 		$qb->executeStatement();
 	}
 
 	/** Allow a later retry after scan threw (stock conflict, validation, etc.). */
 	public function release(string $actorUid, string $requestId): void
 	{
+		$this->workspace->requireWrite();
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete(self::TABLE)
 			->where($qb->expr()->eq('actor_uid', $qb->createNamedParameter($actorUid)))
 			->andWhere($qb->expr()->eq('request_id', $qb->createNamedParameter($requestId)))
 			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(self::STATUS_PENDING)));
+		$this->workspace->apply($qb);
 		$qb->executeStatement();
 	}
 
@@ -203,6 +210,7 @@ class ScanIdempotencyService
 			->from(self::TABLE)
 			->where($qb->expr()->eq('actor_uid', $qb->createNamedParameter($actorUid)))
 			->andWhere($qb->expr()->eq('request_id', $qb->createNamedParameter($requestId)));
+		$this->workspace->apply($qb);
 		$res = $qb->executeQuery();
 		$row = $res->fetch();
 		$res->closeCursor();

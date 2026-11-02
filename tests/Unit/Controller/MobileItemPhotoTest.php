@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OCA\InventoryCheck\Tests\Unit\Controller;
 
 use OCA\InventoryCheck\Controller\MobileController;
-use OCA\InventoryCheck\Exception\MobileGateException;
+use OCA\InventoryCheck\Exception\MobileRequestException;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Service\AccessControlService;
 use OCA\InventoryCheck\Service\BalanceService;
@@ -13,14 +13,14 @@ use OCA\InventoryCheck\Service\CycleCountService;
 use OCA\InventoryCheck\Service\DevicePairingService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationService;
-use OCA\InventoryCheck\Service\MobileGateService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementService;
 use OCA\InventoryCheck\Service\ScanIdempotencyService;
 use OCP\AppFramework\Http\DataDisplayResponse;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IUser;
@@ -35,8 +35,8 @@ final class MobileItemPhotoTest extends TestCase
 {
 	/** @var IRequest&MockObject */
 	private IRequest $request;
-	/** @var MobileGateService&MockObject */
-	private MobileGateService $gate;
+	/** @var MobileAccessService&MockObject */
+	private MobileAccessService $gate;
 	/** @var ItemPhotoService&MockObject */
 	private ItemPhotoService $photos;
 	/** @var IUserSession&MockObject */
@@ -49,7 +49,7 @@ final class MobileItemPhotoTest extends TestCase
 	{
 		parent::setUp();
 		$this->request = $this->createMock(IRequest::class);
-		$this->gate = $this->createMock(MobileGateService::class);
+		$this->gate = $this->createMock(MobileAccessService::class);
 		$this->photos = $this->createMock(ItemPhotoService::class);
 		$this->session = $this->createMock(IUserSession::class);
 		$this->appSession = $this->createMock(ISession::class);
@@ -57,7 +57,7 @@ final class MobileItemPhotoTest extends TestCase
 		$this->controller = new MobileController(
 			$this->request,
 			$this->gate,
-			$this->createMock(LicenseService::class),
+			$this->createMock(ScannerService::class),
 			$this->createMock(DevicePairingService::class),
 			$this->createMock(ItemService::class),
 			$this->createMock(LocationService::class),
@@ -71,8 +71,9 @@ final class MobileItemPhotoTest extends TestCase
 			$this->createMock(\OCA\InventoryCheck\Service\ProductLookupService::class),
 			$this->session,
 			$this->appSession,
-			$this->createMock(IConfig::class),
+			$this->createMock(WorkspaceSettings::class),
 			$this->createMock(\OCP\IL10N::class),
+			$this->createMock(\OCA\InventoryCheck\Service\WorkspaceContext::class),
 		);
 	}
 
@@ -80,10 +81,10 @@ final class MobileItemPhotoTest extends TestCase
 	{
 		$this->request->method('getHeader')->with('X-IV-Device-Token')->willReturn('');
 		$this->session->method('getUser')->willReturn(null);
-		$this->expectException(MobileGateException::class);
+		$this->expectException(MobileRequestException::class);
 		try {
 			$this->controller->itemPhoto(42);
-		} catch (MobileGateException $e) {
+		} catch (MobileRequestException $e) {
 			$this->assertSame('auth_required', $e->getErrorCode());
 			throw $e;
 		}
@@ -95,7 +96,7 @@ final class MobileItemPhotoTest extends TestCase
 		$user->method('getUID')->willReturn('alice');
 		$this->request->method('getHeader')->with('X-IV-Device-Token')->willReturn('');
 		$this->session->method('getUser')->willReturn($user);
-		$this->gate->expects($this->once())->method('assertGate')->with('alice', null);
+		$this->gate->expects($this->once())->method('requireCaller')->with('alice', null);
 		$this->photos->method('read')->with(99)->willThrowException(new NotFoundException('photo_not_found'));
 
 		$this->expectException(NotFoundException::class);
@@ -113,7 +114,7 @@ final class MobileItemPhotoTest extends TestCase
 		$user->method('getUID')->willReturn('alice');
 		$this->request->method('getHeader')->with('X-IV-Device-Token')->willReturn('');
 		$this->session->method('getUser')->willReturn($user);
-		$this->gate->expects($this->once())->method('assertGate')->with('alice', null);
+		$this->gate->expects($this->once())->method('requireCaller')->with('alice', null);
 		$this->photos->method('read')->with(7)->willReturn([
 			'content' => 'JPEGDATA',
 			'mime' => 'image/jpeg',

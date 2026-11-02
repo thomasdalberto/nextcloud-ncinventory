@@ -9,7 +9,7 @@ use OCA\InventoryCheck\Db\Location;
 use OCA\InventoryCheck\Db\LocationMapper;
 use OCA\InventoryCheck\Exception\ValidationException;
 use OCA\InventoryCheck\Service\LocationScanPolicy;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -18,22 +18,22 @@ use PHPUnit\Framework\TestCase;
  */
 final class LocationScanPolicyTest extends TestCase
 {
-	/** @var IConfig&MockObject */
-	private IConfig $config;
+	/** @var WorkspaceSettings&MockObject */
+	private WorkspaceSettings $config;
 	/** @var LocationMapper&MockObject */
 	private LocationMapper $locations;
 
 	protected function setUp(): void
 	{
 		parent::setUp();
-		$this->config = $this->createMock(IConfig::class);
+		$this->config = $this->createMock(WorkspaceSettings::class);
 		$this->locations = $this->createMock(LocationMapper::class);
 	}
 
 	public function testRequiredEmptyCodeFails(): void
 	{
-		$this->config->method('getAppValue')
-			->with(Application::APP_ID, LocationScanPolicy::KEY_REQUIRE_LOCATION_SCAN, '0')
+		$this->config->method('get')
+			->with(LocationScanPolicy::KEY_REQUIRE_LOCATION_SCAN, '0')
 			->willReturn('1');
 
 		try {
@@ -47,7 +47,7 @@ final class LocationScanPolicyTest extends TestCase
 
 	public function testRequiredMismatchFailsWithFieldName(): void
 	{
-		$this->config->method('getAppValue')->willReturn('1');
+		$this->config->method('get')->willReturn('1');
 		$loc = new Location();
 		$loc->setCode('VAN-1');
 		$this->locations->method('findById')->with(9)->willReturn($loc);
@@ -69,7 +69,7 @@ final class LocationScanPolicyTest extends TestCase
 
 	public function testRequiredExactMatchPasses(): void
 	{
-		$this->config->method('getAppValue')->willReturn('1');
+		$this->config->method('get')->willReturn('1');
 		$loc = new Location();
 		$loc->setCode('VAN-1');
 		$this->locations->method('findById')->with(3)->willReturn($loc);
@@ -80,14 +80,14 @@ final class LocationScanPolicyTest extends TestCase
 
 	public function testPolicyOffIgnoresEmptyCode(): void
 	{
-		$this->config->method('getAppValue')->willReturn('0');
+		$this->config->method('get')->willReturn('0');
 		LocationScanPolicy::assertMatches($this->config, $this->locations, 3, null);
 		$this->addToAssertionCount(1);
 	}
 
 	public function testPolicyOffStillRejectsMismatchedProvidedCode(): void
 	{
-		$this->config->method('getAppValue')->willReturn('0');
+		$this->config->method('get')->willReturn('0');
 		$loc = new Location();
 		$loc->setCode('VAN-1');
 		$this->locations->method('findById')->with(3)->willReturn($loc);

@@ -18,7 +18,7 @@ final class ProductLookupControllerTest extends TestCase
 	{
 		$access = $this->createMock(AccessControlService::class);
 		$access->method('currentUserId')->willReturn('alice');
-		$access->method('requireOffice')->willReturnCallback(static function (string $uid): void {
+		$access->method('requireWrite')->willReturnCallback(static function (string $uid): void {
 			self::assertSame('alice', $uid);
 		});
 		$l10n = $this->createMock(IL10N::class);

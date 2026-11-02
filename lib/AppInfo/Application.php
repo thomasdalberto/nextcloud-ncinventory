@@ -4,22 +4,19 @@ declare(strict_types=1);
 
 namespace OCA\InventoryCheck\AppInfo;
 
-use OCA\InventoryCheck\Listener\GroupDeletedListener;
-use OCA\InventoryCheck\Listener\UserDeletedListener;
-use OCP\Group\Events\GroupDeletedEvent;
-use OCP\User\Events\UserDeletedEvent;
 use OCA\InventoryCheck\Command\RebuildBalancesCommand;
 use OCA\InventoryCheck\Db\BalanceMapper;
 use OCA\InventoryCheck\Db\CycleCampaignMapper;
 use OCA\InventoryCheck\Db\CycleLineMapper;
 use OCA\InventoryCheck\Db\ItemMapper;
-use OCA\InventoryCheck\Db\LicenseStateMapper;
 use OCA\InventoryCheck\Db\LocationFavouriteMapper;
 use OCA\InventoryCheck\Db\LocationMapper;
-use OCA\InventoryCheck\Db\MobileSeatMapper;
 use OCA\InventoryCheck\Db\MovementMapper;
 use OCA\InventoryCheck\Db\NotifyLogMapper;
 use OCA\InventoryCheck\Db\ScanDeviceMapper;
+use OCA\InventoryCheck\Db\WorkspaceMapper;
+use OCA\InventoryCheck\Listener\GroupDeletedListener;
+use OCA\InventoryCheck\Listener\UserDeletedListener;
 use OCA\InventoryCheck\Middleware\AppAccessMiddleware;
 use OCA\InventoryCheck\Notification\Notifier;
 use OCA\InventoryCheck\Public\StockIssueFacade;
@@ -38,7 +35,6 @@ use OCA\InventoryCheck\Service\DirectoryOptionsService;
 use OCA\InventoryCheck\Service\FlangeService;
 use OCA\InventoryCheck\Service\ItemPhotoService;
 use OCA\InventoryCheck\Service\ItemService;
-use OCA\InventoryCheck\Service\LicenseService;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCA\InventoryCheck\Service\LocationFavouriteService;
 use OCA\InventoryCheck\Service\LocationService;
@@ -46,21 +42,24 @@ use OCA\InventoryCheck\Service\Lookup\OpenFactsProvider;
 use OCA\InventoryCheck\Service\Lookup\UpcItemDbProvider;
 use OCA\InventoryCheck\Service\LowStockNotifyService;
 use OCA\InventoryCheck\Service\LowStockService;
-use OCA\InventoryCheck\Service\MobileGateService;
-use OCA\InventoryCheck\Service\ProductLookupService;
+use OCA\InventoryCheck\Service\MobileAccessService;
 use OCA\InventoryCheck\Service\MovementService;
-use OCA\InventoryCheck\Service\ScanIdempotencyService;
+use OCA\InventoryCheck\Service\ProductLookupService;
 use OCA\InventoryCheck\Service\QtyScaleService;
+use OCA\InventoryCheck\Service\ScanIdempotencyService;
 use OCA\InventoryCheck\Service\UpgradeBackupService;
-use OCA\InventoryCheck\Support\NavGate;
+use OCA\InventoryCheck\Service\WorkspaceContext;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
+use OCA\InventoryCheck\Service\ScannerService;
 use OCP\Activity\IManager as IActivityManager;
-use OCP\App\IAppManager;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\App\IAppManager;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IRootFolder;
+use OCP\Group\Events\GroupDeletedEvent;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
@@ -71,6 +70,7 @@ use OCP\IUserSession;
 use OCP\L10N\IFactory;
 use OCP\Lock\ILockingProvider;
 use OCP\Notification\IManager as INotificationManager;
+use OCP\User\Events\UserDeletedEvent;
 
 // Bundled splitbrain/phpQRCode lives under lib/Vendor. Nextcloud only autoloads
 // OCA\* classes, so the app must load its own composer autoloader — otherwise
@@ -118,25 +118,26 @@ class Application extends App implements IBootstrap
 	{
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
 		$context->registerEventListener(GroupDeletedEvent::class, GroupDeletedListener::class);
-		$context->registerService(LocationMapper::class, static fn ($c) => new LocationMapper($c->get(IDBConnection::class)));
-		$context->registerService(ItemMapper::class, static fn ($c) => new ItemMapper($c->get(IDBConnection::class)));
-		$context->registerService(BalanceMapper::class, static fn ($c) => new BalanceMapper($c->get(IDBConnection::class)));
-		$context->registerService(MovementMapper::class, static fn ($c) => new MovementMapper($c->get(IDBConnection::class)));
-		$context->registerService(LicenseStateMapper::class, static fn ($c) => new LicenseStateMapper($c->get(IDBConnection::class)));
-		$context->registerService(MobileSeatMapper::class, static fn ($c) => new MobileSeatMapper($c->get(IDBConnection::class)));
+		$context->registerService(LocationMapper::class, static fn ($c) => new LocationMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+		$context->registerService(ItemMapper::class, static fn ($c) => new ItemMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+		$context->registerService(BalanceMapper::class, static fn ($c) => new BalanceMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+		$context->registerService(MovementMapper::class, static fn ($c) => new MovementMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
 		$context->registerService(ScanDeviceMapper::class, static fn ($c) => new ScanDeviceMapper($c->get(IDBConnection::class)));
-		$context->registerService(NotifyLogMapper::class, static fn ($c) => new NotifyLogMapper($c->get(IDBConnection::class)));
-		$context->registerService(CycleCampaignMapper::class, static fn ($c) => new CycleCampaignMapper($c->get(IDBConnection::class)));
-		$context->registerService(CycleLineMapper::class, static fn ($c) => new CycleLineMapper($c->get(IDBConnection::class)));
-		$context->registerService(LocationFavouriteMapper::class, static fn ($c) => new LocationFavouriteMapper($c->get(IDBConnection::class)));
+		$context->registerService(NotifyLogMapper::class, static fn ($c) => new NotifyLogMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+		$context->registerService(CycleCampaignMapper::class, static fn ($c) => new CycleCampaignMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+		$context->registerService(CycleLineMapper::class, static fn ($c) => new CycleLineMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+		$context->registerService(LocationFavouriteMapper::class, static fn ($c) => new LocationFavouriteMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
+
+		$context->registerService(WorkspaceMapper::class, static fn ($c) => new WorkspaceMapper($c->get(IDBConnection::class)));
 
 		$context->registerService(Clock::class, static fn () => new Clock());
 
 		$context->registerService(AccessControlService::class, static function ($c): AccessControlService {
 			return new AccessControlService(
-				$c->get(IConfig::class),
 				$c->get(IGroupManager::class),
 				$c->get(IUserSession::class),
+				$c->get(WorkspaceContext::class),
+				$c->get(WorkspaceSettings::class),
 			);
 		});
 		$context->registerService(DirectoryOptionsService::class, static function ($c): DirectoryOptionsService {
@@ -148,18 +149,19 @@ class Application extends App implements IBootstrap
 		$context->registerService(LocationAclService::class, static function ($c): LocationAclService {
 			return new LocationAclService(
 				$c->get(IDBConnection::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(AccessControlService::class),
 				$c->get(IGroupManager::class),
 				$c->get(IUserManager::class),
 				$c->get(LocationMapper::class),
 				$c->get(ScanDeviceMapper::class),
+				$c->get(WorkspaceContext::class),
 			);
 		});
 		$context->registerService(QtyScaleService::class, static function ($c): QtyScaleService {
 			return new QtyScaleService(
 				$c->get(IDBConnection::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(ILockingProvider::class),
 			);
 		});
@@ -185,7 +187,7 @@ class Application extends App implements IBootstrap
 				$c->get(Clock::class),
 				$c->get(ILockingProvider::class),
 				$c->get(LocationAclService::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(CycleLineMapper::class),
 				$c->get(LocationMapper::class),
 				$c->get(ItemPhotoService::class),
@@ -200,22 +202,6 @@ class Application extends App implements IBootstrap
 		// LowStockNotifyService never depends on MovementService — resolving it
 		// first here keeps the graph acyclic while still letting MovementService
 		// fire a best-effort notify after each ledger commit.
-		$context->registerService(LowStockNotifyService::class, static function ($c): LowStockNotifyService {
-			return new LowStockNotifyService(
-				$c->get(ItemMapper::class),
-				$c->get(BalanceMapper::class),
-				$c->get(NotifyLogMapper::class),
-				$c->get(AccessControlService::class),
-				$c->get(Clock::class),
-				$c->get(IConfig::class),
-				$c->get(IGroupManager::class),
-				$c->get(IUserManager::class),
-				$c->get(INotificationManager::class),
-				$c->get(IActivityManager::class),
-				$c->get(IURLGenerator::class),
-				$c->get(\Psr\Log\LoggerInterface::class),
-			);
-		});
 		$context->registerService(MovementService::class, static function ($c): MovementService {
 			return new MovementService(
 				$c->get(IDBConnection::class),
@@ -226,7 +212,7 @@ class Application extends App implements IBootstrap
 				$c->get(AccessControlService::class),
 				$c->get(Clock::class),
 				$c->get(LocationAclService::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(LowStockNotifyService::class),
 			);
 		});
@@ -234,60 +220,25 @@ class Application extends App implements IBootstrap
 			return new ScanIdempotencyService(
 				$c->get(IDBConnection::class),
 				$c->get(Clock::class),
+				$c->get(WorkspaceContext::class),
 			);
 		});
 		$context->registerService(LowStockService::class, static function ($c): LowStockService {
 			return new LowStockService(
 				$c->get(ItemMapper::class),
 				$c->get(BalanceMapper::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(LocationAclService::class),
-			);
-		});
-		$context->registerService(LicenseService::class, static function ($c): LicenseService {
-			return new LicenseService(
-				$c->get(IDBConnection::class),
-				$c->get(LicenseStateMapper::class),
-				$c->get(MobileSeatMapper::class),
-				$c->get(ScanDeviceMapper::class),
-				$c->get(Clock::class),
-				$c->get(IUserManager::class),
-				$c->get(ILockingProvider::class),
-				$c->get(IConfig::class),
 			);
 		});
 		$context->registerService(DevicePairingService::class, static function ($c): DevicePairingService {
 			return new DevicePairingService(
-				$c->get(LicenseService::class),
+				$c->get(ScannerService::class),
 				$c->get(ScanDeviceMapper::class),
 				$c->get(Clock::class),
 				$c->get(IConfig::class),
 				$c->get(ILockingProvider::class),
 				$c->get(IRequest::class),
-			);
-		});
-		$context->registerService(UserDeletedListener::class, static function ($c): UserDeletedListener {
-			return new UserDeletedListener(
-				$c->get(AccessControlService::class),
-				$c->get(LicenseService::class),
-				$c->get(LocationFavouriteMapper::class),
-				$c->get(LocationAclService::class),
-			);
-		});
-		$context->registerService(GroupDeletedListener::class, static function ($c): GroupDeletedListener {
-			return new GroupDeletedListener(
-				$c->get(AccessControlService::class),
-				$c->get(LocationAclService::class),
-			);
-		});
-		$context->registerService(MobileGateService::class, static function ($c): MobileGateService {
-			return new MobileGateService(
-				$c->get(LicenseService::class),
-				$c->get(AccessControlService::class),
-				$c->get(Clock::class),
-				$c->get(IConfig::class),
-				$c->get(LocationAclService::class),
-				$c->get(ProductLookupService::class),
 			);
 		});
 		$context->registerService(ProductLookupService::class, static function ($c): ProductLookupService {
@@ -314,7 +265,7 @@ class Application extends App implements IBootstrap
 				$c->get(BalanceMapper::class),
 				$c->get(MovementMapper::class),
 				$c->get(AccessControlService::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 			);
 		});
 		$context->registerService(CsvImportService::class, static function ($c): CsvImportService {
@@ -326,7 +277,7 @@ class Application extends App implements IBootstrap
 				$c->get(AccessControlService::class),
 				$c->get(Clock::class),
 				$c->get(ILockingProvider::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 			);
 		});
 		$context->registerService(ItemPhotoService::class, static function ($c): ItemPhotoService {
@@ -336,6 +287,7 @@ class Application extends App implements IBootstrap
 				$c->get(ItemMapper::class),
 				$c->get(AccessControlService::class),
 				$c->get(Clock::class),
+				$c->get(WorkspaceContext::class),
 			);
 		});
 		$context->registerService(CycleCountService::class, static function ($c): CycleCountService {
@@ -368,10 +320,10 @@ class Application extends App implements IBootstrap
 				$c->get(MovementMapper::class),
 				$c->get(ItemMapper::class),
 				$c->get(LocationMapper::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 			);
 		});
-		$context->registerService(\OCA\InventoryCheck\Db\InvoicePushMapper::class, static fn ($c) => new \OCA\InventoryCheck\Db\InvoicePushMapper($c->get(IDBConnection::class)));
+		$context->registerService(\OCA\InventoryCheck\Db\InvoicePushMapper::class, static fn ($c) => new \OCA\InventoryCheck\Db\InvoicePushMapper($c->get(IDBConnection::class), $c->get(WorkspaceContext::class)));
 
 		$context->registerService(\OCA\InventoryCheck\Service\InvoicePushService::class, static function ($c): \OCA\InventoryCheck\Service\InvoicePushService {
 			return new \OCA\InventoryCheck\Service\InvoicePushService(
@@ -384,7 +336,7 @@ class Application extends App implements IBootstrap
 
 		$context->registerService(FlangeService::class, static function ($c): FlangeService {
 			return new FlangeService(
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(IAppManager::class),
 				$c->get(LocationMapper::class),
 				$c->get(AccessControlService::class),
@@ -433,6 +385,8 @@ class Application extends App implements IBootstrap
 				$c->get(IConfig::class),
 				$c->get(MovementMapper::class),
 				$c->get(BalanceMapper::class),
+				$c->get(WorkspaceContext::class),
+				$c->get(WorkspaceMapper::class),
 			);
 		});
 
@@ -443,8 +397,9 @@ class Application extends App implements IBootstrap
 				$c->get(IRequest::class),
 				$c->get(IURLGenerator::class),
 				$c->get(IFactory::class),
-				$c->get(IConfig::class),
+				$c->get(WorkspaceSettings::class),
 				$c->get(\Psr\Log\LoggerInterface::class),
+				$c->get(WorkspaceContext::class),
 			);
 		});
 		$context->registerMiddleware(AppAccessMiddleware::class);
@@ -455,15 +410,5 @@ class Application extends App implements IBootstrap
 	public function boot(IBootContext $context): void
 	{
 		$app = $context->getAppContainer();
-		// Menu entry only for users with app access — a static <navigation>
-		// entry would advertise the app to users the door denies.
-		NavGate::register(
-			$app,
-			'inventorycheck.page.dashboard',
-			'app.svg',
-			'InventoryCheck',
-			20,
-			static fn(string $uid): bool => $app->get(AccessControlService::class)->canUseApp($uid),
-		);
 	}
 }

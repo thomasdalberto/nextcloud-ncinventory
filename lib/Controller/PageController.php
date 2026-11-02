@@ -6,7 +6,7 @@ namespace OCA\InventoryCheck\Controller;
 
 use OCA\InventoryCheck\AppInfo\Application;
 use OCA\InventoryCheck\Service\AccessControlService;
-use OCA\InventoryCheck\Service\LicenseService;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCA\InventoryCheck\Service\LocationAclService;
 use OCA\InventoryCheck\Service\LocationScanPolicy;
 use OCA\InventoryCheck\Service\LowStockService;
@@ -14,6 +14,7 @@ use OCA\InventoryCheck\Service\ProductLookupService;
 use OCA\InventoryCheck\Service\QtyScale;
 use OCA\InventoryCheck\Service\ReasonCodes;
 use OCA\InventoryCheck\Service\SettingsSectionCatalog;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -21,8 +22,8 @@ use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
-use OCP\IRequest;
 use OCP\IConfig;
+use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\L10N\IFactory;
@@ -39,13 +40,22 @@ class PageController extends Controller
 		private readonly IConfig $config,
 		private readonly SettingsSectionCatalog $settingsSections,
 		private readonly ProductLookupService $productLookup,
+		private readonly WorkspaceContext $workspace,
+		private readonly WorkspaceSettings $settings,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function dashboard(): TemplateResponse
+	public function workspaces(): TemplateResponse|RedirectResponse
+	{
+		return $this->page('workspaces', 'Workspaces', 'Your inventories and workspace invitations.');
+	}
+
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function dashboard(): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'dashboard',
@@ -56,7 +66,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function items(): TemplateResponse
+	public function items(): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'items',
@@ -67,7 +77,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function item(int $id): TemplateResponse
+	public function item(int $id): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'item-detail',
@@ -79,7 +89,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function locations(): TemplateResponse
+	public function locations(): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'locations',
@@ -90,7 +100,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function location(int $id): TemplateResponse
+	public function location(int $id): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'location-detail',
@@ -102,7 +112,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function movements(): TemplateResponse
+	public function movements(): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'movements',
@@ -113,7 +123,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function stocktake(): TemplateResponse
+	public function stocktake(): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'stocktake',
@@ -128,7 +138,7 @@ class PageController extends Controller
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function stocktakeNew(): TemplateResponse
+	public function stocktakeNew(): TemplateResponse|RedirectResponse
 	{
 		return $this->page(
 			'stocktake-new',
@@ -139,7 +149,7 @@ class PageController extends Controller
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function stocktakeCampaign(int $id): TemplateResponse
+	public function stocktakeCampaign(int $id): TemplateResponse|RedirectResponse
 	{
 		return $this->page('stocktake', 'Stocktake', 'Cycle counts and Inventur campaigns', $id);
 	}
@@ -153,10 +163,10 @@ class PageController extends Controller
 	public function settings(): RedirectResponse
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		$url = $this->urlGenerator->linkToRoute(
 			'inventorycheck.page.settingsSection',
-			['section' => SettingsSectionCatalog::DEFAULT_SECTION],
+			['section' => SettingsSectionCatalog::DEFAULT_SECTION, 'workspaceId' => $this->workspace->id()],
 		);
 		// In some PHPUnit contexts the route map is not populated, so linkToRoute() can return ''.
 		// Fall back to the known settings URL structure so redirects are non-empty and deterministic.
@@ -174,7 +184,7 @@ class PageController extends Controller
 	public function settingsSection(string $section): Response
 	{
 		$uid = $this->access->currentUserId();
-		$this->access->requireAppAdmin($uid);
+		$this->access->requireWorkspaceAdmin($uid);
 		$section = strtolower(trim($section));
 		if (!$this->settingsSections->isSection($section)) {
 			return new NotFoundResponse();
@@ -196,9 +206,17 @@ class PageController extends Controller
 		string $hintKey,
 		?int $entityId = null,
 		?string $settingsSection = null,
-	): TemplateResponse {
+	): TemplateResponse|RedirectResponse {
+		$currentWorkspace = null;
+		if ($pageId !== 'workspaces') {
+			try {
+				$currentWorkspace = $this->workspace->current();
+			} catch (\OCA\InventoryCheck\Exception\NotFoundException $e) {
+				if ($e->getErrorCode() !== 'workspace_required') { throw $e; }
+				return new RedirectResponse($this->urlGenerator->linkToRoute('inventorycheck.page.workspaces'));
+			}
+		}
 		Util::addScript(Application::APP_ID, 'app');
-		Util::addScript(Application::APP_ID, 'common/app-feedback');
 		Util::addScript(Application::APP_ID, 'common/product-lookup');
 		// Soft keyboard: keep focused notes/inputs above the IME on phones.
 		Util::addScript(Application::APP_ID, 'common/keep-focused-visible');
@@ -207,9 +225,9 @@ class PageController extends Controller
 
 		$l = $this->l10nFactory->get(Application::APP_ID);
 		$uid = $this->userSession->getUser()?->getUID() ?? '';
-		$isAppAdmin = $this->access->isAppAdmin($uid);
+		$isWorkspaceAdmin = $currentWorkspace !== null && $this->access->isWorkspaceAdmin($uid);
 		$isSystemAdmin = $this->access->isSystemAdmin($uid);
-		$isOffice = $this->access->isOffice($uid);
+		$canWrite = $currentWorkspace !== null && $this->access->canWrite($uid);
 
 		$settingsSectionUrls = [];
 		$settingsSectionLabels = [];
@@ -226,6 +244,7 @@ class PageController extends Controller
 
 		$urls = [
 			'pages' => [
+				'workspaces' => $this->urlGenerator->linkToRoute('inventorycheck.page.workspaces'),
 				'dashboard' => $this->urlGenerator->linkToRoute('inventorycheck.page.dashboard'),
 				'items' => $this->urlGenerator->linkToRoute('inventorycheck.page.items'),
 				'locations' => $this->urlGenerator->linkToRoute('inventorycheck.page.locations'),
@@ -237,6 +256,7 @@ class PageController extends Controller
 			],
 			'settingsSections' => $settingsSectionUrls,
 			'api' => [
+				'workspaces' => $this->urlGenerator->linkToRoute('inventorycheck.workspace.index'),
 				'items' => $this->urlGenerator->linkToRoute('inventorycheck.item.index'),
 				'itemByCode' => $this->urlGenerator->linkToRoute('inventorycheck.item.byCode', ['code' => '__CODE__']),
 				'itemLabel' => $this->urlGenerator->linkToRoute('inventorycheck.item.label', ['id' => 0]),
@@ -266,26 +286,34 @@ class PageController extends Controller
 				'flangeStatus' => $this->urlGenerator->linkToRoute('inventorycheck.flange.status'),
 				'flangeSettings' => $this->urlGenerator->linkToRoute('inventorycheck.flange.saveSettings'),
 				'flangeInvoicePushRetry' => $this->urlGenerator->linkToRoute('inventorycheck.flange.retryInvoicePush'),
+				'configStock' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveStock'),
+				'appConfig' => $this->urlGenerator->linkToRoute('inventorycheck.administration.index'),
+				'scanners' => $this->urlGenerator->linkToRoute('inventorycheck.scanner.index'),
 				'config' => $this->urlGenerator->linkToRoute('inventorycheck.config.index'),
-				'configAccess' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveAccess'),
-				'configOffice' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveOffice'),
 				'configNotify' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveNotify'),
 				'configFractional' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveFractional'),
 				'configWaveD' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveWaveD'),
 				'reasonCodes' => $this->urlGenerator->linkToRoute('inventorycheck.config.reasonCodes'),
 				'configLocationAcl' => $this->urlGenerator->linkToRoute('inventorycheck.config.locationAcl'),
-				'configProductLookup' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveProductLookup'),
 				'productLookup' => $this->urlGenerator->linkToRoute('inventorycheck.productLookup.lookup'),
 				'locationLabel' => $this->urlGenerator->linkToRoute('inventorycheck.location.label', ['id' => 0]),
 				'locationLabelPrint' => $this->urlGenerator->linkToRoute('inventorycheck.location.labelPrint', ['id' => 0]),
 				'locationBulkLabels' => $this->urlGenerator->linkToRoute('inventorycheck.location.bulkLabels'),
 				'directorySearchUsers' => $this->urlGenerator->linkToRoute('inventorycheck.directory.searchUsers'),
 				'directorySearchGroups' => $this->urlGenerator->linkToRoute('inventorycheck.directory.searchGroups'),
-				'license' => $this->urlGenerator->linkToRoute('inventorycheck.license.show'),
-				'licenseSeats' => $this->urlGenerator->linkToRoute('inventorycheck.license.seats'),
-				'licenseDevices' => $this->urlGenerator->linkToRoute('inventorycheck.license.devices'),
 			],
 		];
+
+		if ($currentWorkspace !== null) {
+			foreach (['pages', 'settingsSections'] as $group) {
+				foreach ($urls[$group] as $key => &$url) {
+					if ($key !== 'workspaces') {
+						$url .= (str_contains($url, '?') ? '&' : '?') . 'workspaceId=' . $currentWorkspace['id'];
+					}
+				}
+				unset($url);
+			}
+		}
 
 		// Prefer translated title/hint when callers already passed IL10N output
 		// (settings sections); otherwise translate the English key.
@@ -297,15 +325,15 @@ class PageController extends Controller
 			: $l->t($hintKey);
 
 		$params = [
+			'workspace' => $currentWorkspace,
 			'pageId' => $pageId,
 			'pageTitle' => $pageTitle,
 			'pageHint' => $pageHint,
 			'entityId' => $entityId,
 			'currentUserId' => $uid,
-			'isAppAdmin' => $isAppAdmin,
+			'isWorkspaceAdmin' => $isWorkspaceAdmin,
 			'isSystemAdmin' => $isSystemAdmin,
-			'isOffice' => $isOffice,
-			'mobileAppStatus' => LicenseService::MOBILE_APP_STATUS,
+			'canWrite' => $canWrite,
 			'urlsJson' => json_encode($urls, JSON_UNESCAPED_SLASHES),
 			'urls' => $urls,
 			// Always expose section labels so the Settings submenu is populated from every page
@@ -313,38 +341,25 @@ class PageController extends Controller
 			'settingsSectionLabels' => $settingsSectionLabels,
 			'productLookupEnabled' => $this->productLookup->isEnabled(),
 			'productLookupAutofire' => $this->productLookup->isAutofire(),
-			'allowNegativeStock' => $this->access->allowNegativeStock(),
-			'locationReorderHintEnabled' => $this->config->getAppValue(
-				Application::APP_ID,
+			'allowNegativeStock' => $currentWorkspace !== null && $this->access->allowNegativeStock(),
+			'locationReorderHintEnabled' => $currentWorkspace !== null && $this->settings->get(
 				LowStockService::KEY_LOCATION_REORDER_HINT_ENABLED,
 				'0',
 			) === '1',
-			'requireAdjustReason' => ReasonCodes::isRequired($this->config),
-			'requireLocationScan' => LocationScanPolicy::isRequired($this->config),
-			'qtyScale' => QtyScale::current($this->config),
-			'locationAclEnabled' => $this->config->getAppValue(
-				Application::APP_ID,
+			'requireAdjustReason' => ($currentWorkspace !== null && ReasonCodes::isRequired($this->settings)),
+			'requireLocationScan' => ($currentWorkspace !== null && LocationScanPolicy::isRequired($this->settings)),
+			'qtyScale' => ($currentWorkspace === null ? 0 : QtyScale::current($this->settings)),
+			'locationAclEnabled' => $currentWorkspace !== null && $this->settings->get(
 				LocationAclService::KEY_ENABLED,
 				'0',
 			) === '1',
 			'timezone' => $this->config->getUserValue($uid, 'core', 'timezone', $this->config->getSystemValueString('default_timezone', 'UTC')) ?: 'UTC',
-			'roleLabel' => $isAppAdmin ? $l->t('Administrator') : ($isOffice ? $l->t('Office') : $l->t('Field')),
+			'roleLabel' => match ($currentWorkspace['role'] ?? '') {
+				'owner' => $l->t('Owner'), 'admin' => $l->t('Admin'), 'editor' => $l->t('Write'), 'viewer' => $l->t('Read'), default => $l->t('Workspaces'),
+			},
 		];
 
-		if ($pageId === 'settings' && $settingsSection !== null) {
-			Util::addScript(Application::APP_ID, 'settings-legacy-redirect');
-			$params['settingsSection'] = $settingsSection;
-			$licenseAbsolute = $this->urlGenerator->linkToRouteAbsolute(
-				'inventorycheck.page.settingsSection',
-				['section' => 'license'],
-			);
-			// In CLI PHPUnit contexts linkToRouteAbsolute() can degrade to just the scheme/host
-			// when the route map is incomplete. Ensure the URL actually points at /settings/license.
-			if ($licenseAbsolute === '' || !str_contains($licenseAbsolute, '/settings/license')) {
-				$licenseAbsolute = $this->settingsSectionFallbackUrl('license');
-			}
-			$params['supportUsLicenseUrl'] = $licenseAbsolute . '#iv-license';
-		}
+		if ($pageId === 'settings') { $params['settingsSection'] = $settingsSection; }
 
 		$template = match ($pageId) {
 			'item-detail' => 'item-detail',

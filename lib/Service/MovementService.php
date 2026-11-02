@@ -16,7 +16,7 @@ use OCA\InventoryCheck\Exception\InsufficientStockException;
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCA\InventoryCheck\Exception\PermissionDeniedException;
 use OCA\InventoryCheck\Exception\ValidationException;
-use OCP\IConfig;
+use OCA\InventoryCheck\Service\WorkspaceSettings;
 use OCP\IDBConnection;
 
 /**
@@ -55,7 +55,7 @@ class MovementService
 		private readonly AccessControlService $access,
 		private readonly Clock $clock,
 		private readonly LocationAclService $locationAcl,
-		private readonly IConfig $config,
+		private readonly WorkspaceSettings $settings,
 		private readonly ?LowStockNotifyService $lowStockNotify = null,
 	) {
 	}
@@ -72,7 +72,7 @@ class MovementService
 		?string $lotCode = null,
 		bool $notifyLowStock = true,
 	): array {
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->assertLocationAccess($actorUid, $locationId);
 		return $this->postSingle($actorUid, 'receive', $itemId, $locationId, $qty, $reason, $lotCode, $notifyLowStock);
 	}
@@ -91,7 +91,7 @@ class MovementService
 	): array {
 		$this->assertLocationAccess($actorUid, $locationId);
 		// Wave D8 / AF-IV12: web issue must honour require_location_scan (not only /scan).
-		LocationScanPolicy::assertMatches($this->config, $this->locations, $locationId, $locationCode);
+		LocationScanPolicy::assertMatches($this->settings, $this->locations, $locationId, $locationCode);
 		return $this->postSingle($actorUid, 'issue', $itemId, $locationId, $qty, $reason, $lotCode, true);
 	}
 
@@ -112,15 +112,15 @@ class MovementService
 		if ($fromLocationId === $toLocationId) {
 			throw new ValidationException('same_location');
 		}
-		if (!MovementMath::isValidMovementQty($qty, QtyScale::maxStorage($this->config))) {
+		if (!MovementMath::isValidMovementQty($qty, QtyScale::maxStorage($this->settings))) {
 			throw new ValidationException('invalid_qty');
 		}
 		$this->assertLocationAccess($actorUid, $fromLocationId);
 		$this->assertLocationAccess($actorUid, $toLocationId);
 		// Wave D8 / AF-IV12: confirm both ends when policy is on.
-		LocationScanPolicy::assertMatches($this->config, $this->locations, $fromLocationId, $locationCode);
+		LocationScanPolicy::assertMatches($this->settings, $this->locations, $fromLocationId, $locationCode);
 		LocationScanPolicy::assertMatches(
-			$this->config,
+			$this->settings,
 			$this->locations,
 			$toLocationId,
 			$toLocationCode,
@@ -199,7 +199,7 @@ class MovementService
 		bool $notifyLowStock = true,
 		?string $reasonCode = null,
 	): array {
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->assertLocationAccess($actorUid, $locationId);
 		$reason = $this->normalizeReason($reason);
 		$allowNeg = $this->access->allowNegativeStock();
@@ -224,7 +224,7 @@ class MovementService
 					$qty,
 					$qtyDelta,
 					$allowNeg,
-					QtyScale::maxStorage($this->config),
+					QtyScale::maxStorage($this->settings),
 				);
 			} catch (ValidationException $e) {
 				if ($e->getErrorCode() === 'would_go_negative') {
@@ -233,7 +233,7 @@ class MovementService
 				throw $e;
 			}
 
-			$reasonCode = ReasonCodes::requireForAdjust($this->config, $reasonCode);
+			$reasonCode = ReasonCodes::requireForAdjust($this->settings, $reasonCode);
 
 			// An adjust can increase on-hand qty exactly like a receive (e.g.
 			// a cycle-count correction) — the serial uniqueness invariant
@@ -284,9 +284,9 @@ class MovementService
 		int $refId,
 		bool $notifyLowStock = true,
 	): array {
-		// Defense in depth: FlangeService already requireOffice, but in-process
+		// Defense in depth: FlangeService already requireWrite, but in-process
 		// StockIssueFacade callers must not skip office / location ACL.
-		$this->access->requireOffice($actorUid);
+		$this->access->requireWrite($actorUid);
 		$this->assertLocationAccess($actorUid, $locationId);
 		$refType = CodeRules::trim($refType);
 		if ($refType === '' || mb_strlen($refType) > 32 || $refId <= 0) {
@@ -294,7 +294,7 @@ class MovementService
 				['field' => 'refType', 'code' => 'validation_failed'],
 			]);
 		}
-		if (!MovementMath::isValidMovementQty($qty, QtyScale::maxStorage($this->config))) {
+		if (!MovementMath::isValidMovementQty($qty, QtyScale::maxStorage($this->settings))) {
 			throw new ValidationException('invalid_qty');
 		}
 		$reason = $this->normalizeReason($reason);
@@ -380,7 +380,7 @@ class MovementService
 			$this->assertLocationAccess($actorUid, $toLocationId);
 		}
 
-		LocationScanPolicy::assertMatches($this->config, $this->locations, $locationId, $locationCode);
+		LocationScanPolicy::assertMatches($this->settings, $this->locations, $locationId, $locationCode);
 
 		return match ($kind) {
 			'receive' => $asOffice
@@ -523,7 +523,7 @@ class MovementService
 		?string $lotCode = null,
 		bool $notifyLowStock = true,
 	): array {
-		if (!MovementMath::isValidMovementQty($qty, QtyScale::maxStorage($this->config))) {
+		if (!MovementMath::isValidMovementQty($qty, QtyScale::maxStorage($this->settings))) {
 			throw new ValidationException('invalid_qty');
 		}
 		$reason = $this->normalizeReason($reason);
@@ -709,7 +709,7 @@ class MovementService
 				['field' => 'lotCode', 'code' => 'invalid_lot_code'],
 			]);
 		}
-		$unit = QtyScale::serialUnit($this->config);
+		$unit = QtyScale::serialUnit($this->settings);
 		if ($trackMode === 'serial' && in_array($kind, ['issue', 'transfer'], true) && $qty !== $unit) {
 			throw new ValidationException('serial_qty_must_be_one', '', [
 				['field' => 'qty', 'code' => 'serial_qty_must_be_one'],
@@ -734,7 +734,7 @@ class MovementService
 		if ($incomingDelta <= 0) {
 			return;
 		}
-		$unit = QtyScale::serialUnit($this->config);
+		$unit = QtyScale::serialUnit($this->settings);
 		$current = $this->movements->sumQtyDeltaByItemAndLot($itemId, $lotCode);
 		if ($current + $incomingDelta > $unit) {
 			throw new ConflictException('serial_exists');

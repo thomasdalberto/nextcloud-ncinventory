@@ -6,21 +6,21 @@ namespace OCA\InventoryCheck\Db;
 
 use OCA\InventoryCheck\Exception\NotFoundException;
 use OCP\AppFramework\Db\DoesNotExistException;
-use OCP\AppFramework\Db\QBMapper;
+use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCP\IDBConnection;
 
 /**
- * @extends QBMapper<Item>
+ * @extends WorkspaceScopedMapper<Item>
  */
-class ItemMapper extends QBMapper
+class ItemMapper extends WorkspaceScopedMapper
 {
 	use RowLocking;
 
 	public const TABLE = 'iv_items';
 
-	public function __construct(IDBConnection $db)
+	public function __construct(IDBConnection $db, WorkspaceContext $workspace)
 	{
-		parent::__construct($db, self::TABLE, Item::class);
+		parent::__construct($db, self::TABLE, Item::class, $workspace);
 	}
 
 	/**
@@ -95,6 +95,7 @@ class ItemMapper extends QBMapper
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id', 'sku', 'scan_code')->from($this->getTableName());
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$rows = [];
 		while ($row = $result->fetch()) {
@@ -145,6 +146,7 @@ class ItemMapper extends QBMapper
 		$countQb = $this->db->getQueryBuilder();
 		$countQb->select($countQb->func()->count('id', 'cnt'));
 		$apply($countQb);
+		$this->workspace->apply($countQb);
 		$result = $countQb->executeQuery();
 		$total = (int)($result->fetchOne() ?: 0);
 		$result->closeCursor();
@@ -211,6 +213,7 @@ class ItemMapper extends QBMapper
 		$qb->select($qb->func()->count('id', 'cnt'))
 			->from('iv_movements')
 			->where($qb->expr()->eq('item_id', $qb->createNamedParameter($itemId, \PDO::PARAM_INT)));
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$total = (int)($result->fetchOne() ?: 0);
 		$result->closeCursor();
@@ -224,6 +227,7 @@ class ItemMapper extends QBMapper
 			->where($qb->expr()->eq('item_id', $qb->createNamedParameter($itemId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->neq('qty', $qb->createNamedParameter(0, \PDO::PARAM_INT)))
 			->setMaxResults(1);
+		$this->workspace->apply($qb);
 		$result = $qb->executeQuery();
 		$row = $result->fetch();
 		$result->closeCursor();
