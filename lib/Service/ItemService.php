@@ -142,14 +142,28 @@ class ItemService
 			$desc = null;
 		}
 		$reorder = isset($input['reorderLevel']) ? (int)$input['reorderLevel'] : (isset($input['reorder_level']) ? (int)$input['reorder_level'] : 0);
-		$this->validateItemFields($sku, $scan, $name, $uom, $desc, $reorder);
+		$autoSku = $sku === '' && $this->settings->get('auto_sku', '0') === '1';
+		if ($sku === '' && !$autoSku) {
+			$this->validateItemFields($sku, $scan, $name, $uom, $desc, $reorder);
+		}
 		$trackMode = $this->parseTrackMode($input, 'none');
 		$supplierNote = $this->parseSupplierNote($input);
 		$lastPriceMinor = $this->parseLastPriceMinor($input);
 		$targetStock = $this->parseTargetStock($input, $reorder);
 		$defaultLocationId = $this->parseDefaultLocationId($input);
 
-		return $this->withCodesLock(function () use ($actorUid, $sku, $scan, $name, $uom, $desc, $reorder, $trackMode, $supplierNote, $lastPriceMinor, $targetStock, $defaultLocationId): array {
+		return $this->withCodesLock(function () use ($actorUid, $sku, $scan, $name, $uom, $desc, $reorder, $trackMode, $supplierNote, $lastPriceMinor, $targetStock, $defaultLocationId, $autoSku): array {
+			if ($autoSku) {
+				$prefix = $this->settings->get('sku_prefix', 'SKU-');
+				$next = max(1, (int)$this->settings->get('sku_next', '1'));
+				$used = [];
+				foreach ($this->items->allCodePairs() as $pair) { $used[(string)$pair['sku']] = true; $used[(string)$pair['scanCode']] = true; }
+				foreach ($this->locations->allCodes() as $code) { $used[$code] = true; }
+				do { $sku = $prefix . str_pad((string)$next++, 5, '0', STR_PAD_LEFT); } while (isset($used[$sku]));
+				$this->settings->set('sku_next', (string)$next);
+				if ($scan === '') { $scan = $sku; }
+				$this->validateItemFields($sku, $scan, $name, $uom, $desc, $reorder);
+			}
 			if (CodeRules::conflictsWithOthers(null, $sku, $scan, $this->items->allCodePairs())) {
 				throw new ConflictException('code_exists');
 			}

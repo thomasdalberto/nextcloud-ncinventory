@@ -34,8 +34,38 @@ services:
       - ../.tools/nextcloud:/var/www/html
       - ..:/var/www/html/custom_apps/inventorycheck:ro
       - ./apache-assets.conf:/etc/apache2/conf-enabled/inventorycheck-assets.conf:ro
+    networks:
+      - default
+      - https_proxy
     healthcheck:
       test: [CMD-SHELL, "curl --fail --silent http://localhost/status.php | grep -q '\"installed\":true'"]
       interval: 5s
       timeout: 10s
       retries: 60
+
+  https:
+    image: caddy:2-alpine
+    ports:
+      - ${NEXTCLOUD_BIND_ADDRESS:-127.0.0.1}:8443:443
+    environment:
+      NEXTCLOUD_HTTPS_HOSTNAME: ${NEXTCLOUD_HTTPS_HOSTNAME:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      nextcloud:
+        condition: service_healthy
+    networks:
+      https_proxy:
+        ipv4_address: 172.19.0.3
+
+networks:
+  https_proxy:
+    ipam:
+      config:
+        - subnet: 172.19.0.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:

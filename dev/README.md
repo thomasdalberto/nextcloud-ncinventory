@@ -30,6 +30,7 @@ Copy `dev/.env.example` to `dev/.env` and set:
 ```dotenv
 NEXTCLOUD_BIND_ADDRESS=0.0.0.0
 NEXTCLOUD_TRUSTED_DOMAINS="localhost 127.0.0.1 YOUR_MAC_WIFI_IP"
+NEXTCLOUD_HTTPS_HOSTNAME=YOUR_MAC_WIFI_IP
 ```
 
 On macOS, `ipconfig getifaddr en0` usually prints the Wi-Fi IP. Start the preview with those local settings:
@@ -38,16 +39,26 @@ On macOS, `ipconfig getifaddr en0` usually prints the Wi-Fi IP. Start the previe
 docker compose --env-file dev/.env -f dev/compose.yaml up -d --wait
 ```
 
-For an already installed instance, add the Wi-Fi IP to Nextcloud's trusted domains too. Inspect `php occ config:system:get trusted_domains` and choose an unused numeric index; this example uses `3`:
+The stack serves HTTP on port `8086` and HTTPS on port `8443`. The HTTPS endpoint uses Caddy's local certificate authority. Configure the already-installed Nextcloud instance to trust the Caddy proxy and LAN hostname:
 
 ```sh
 docker compose --env-file dev/.env -f dev/compose.yaml exec --user www-data nextcloud \
-  php occ config:system:set trusted_domains 3 --value=YOUR_MAC_WIFI_IP
+  php occ config:system:set trusted_proxies 0 --value=172.19.0.3
 docker compose --env-file dev/.env -f dev/compose.yaml exec --user www-data nextcloud \
-  php occ config:system:set overwrite.cli.url --value=http://YOUR_MAC_WIFI_IP:8086
+  php occ config:system:set overwrite.cli.url --value=https://YOUR_MAC_WIFI_IP:8443
 ```
 
-Open `http://YOUR_MAC_WIFI_IP:8086/apps/inventorycheck/workspaces` on the phone while connected to the same Wi-Fi. Localhost continues to work on the Mac. The CLI URL makes background-generated email links reachable on both devices. Update the settings if DHCP changes the Mac's address. `dev/.env` stays ignored inside this repository. The LAN setting exposes this development preview on the Mac's network interfaces; use it on your trusted local network.
+For an already-installed instance, also add the Wi-Fi IP to Nextcloud's trusted domains if it is not present. Inspect `php occ config:system:get trusted_domains` and use the next free numeric index.
+
+Export Caddy's local root certificate and install it as a trusted certificate on the phone; without this step the browser will warn and may refuse camera access:
+
+```sh
+mkdir -p .tools
+docker compose --env-file dev/.env -f dev/compose.yaml exec -T https cat \
+  /data/caddy/pki/authorities/local/root.crt > .tools/caddy-local-root.crt
+```
+
+Transfer `.tools/caddy-local-root.crt` to the phone. On iPhone/iPad, install the downloaded profile, then enable full trust under **Settings → General → About → Certificate Trust Settings**. On Android, install it as a CA certificate under **Security → Encryption & credentials**. Then open `https://YOUR_MAC_WIFI_IP:8443/apps/inventorycheck/workspaces` while connected to the same Wi-Fi. Update `NEXTCLOUD_HTTPS_HOSTNAME`, Nextcloud's trusted domain, and the URL if DHCP changes the Mac's address. `dev/.env` stays ignored inside this repository. The LAN setting exposes this development preview on the Mac's network interfaces; use it on your trusted local network.
 
 ## Checks
 

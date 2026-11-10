@@ -1,0 +1,8 @@
+{
+	default_sni {$NEXTCLOUD_HTTPS_HOSTNAME}
+}
+
+{$NEXTCLOUD_HTTPS_HOSTNAME} {
+	tls internal
+	reverse_proxy nextcloud:80
+}

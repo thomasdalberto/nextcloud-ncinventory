@@ -10,7 +10,7 @@ use OCP\IL10N;
 final class SettingsSectionCatalog
 {
 	public const DEFAULT_SECTION = 'members';
-	public const SECTIONS = ['members', 'stock', 'notifications', 'quantities', 'location-access', 'connections', 'policies', 'scanners'];
+	public const SECTIONS = ['members', 'stock', 'notifications', 'quantities', 'location-access', 'connections', 'policies', 'scanners', 'codes'];
 
 	public function isSection(string $section): bool
 	{
@@ -33,6 +33,7 @@ final class SettingsSectionCatalog
 			'connections' => $l->t('Connections to other Check apps'),
 			'policies' => $l->t('Scan & adjust policies'),
 			'scanners' => $l->t('Scanners'),
+			'codes' => $l->t('SKU and labels'),
 			default => $l->t('Workspace settings'),
 		};
 	}
@@ -61,6 +62,7 @@ final class SettingsSectionCatalog
 			'connections' => $l->t('Configure stock integrations and the default issue location for this workspace.'),
 			'policies' => $l->t('Set reason code and location scan requirements for this workspace.'),
 			'scanners' => $l->t('Pair and manage scanners that can access this workspace.'),
+			'codes' => $l->t('Choose automatic SKU generation and the label shown for item codes.'),
 			default => '',
 		};
 	}

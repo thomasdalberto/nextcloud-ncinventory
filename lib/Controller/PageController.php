@@ -216,6 +216,7 @@ class PageController extends Controller
 				return new RedirectResponse($this->urlGenerator->linkToRoute('inventorycheck.page.workspaces'));
 			}
 		}
+		Util::addScript(Application::APP_ID, 'vendor/qr-scanner/qr-scanner.legacy.min');
 		Util::addScript(Application::APP_ID, 'app');
 		Util::addScript(Application::APP_ID, 'common/product-lookup');
 		// Soft keyboard: keep focused notes/inputs above the IME on phones.
@@ -260,6 +261,7 @@ class PageController extends Controller
 				'items' => $this->urlGenerator->linkToRoute('inventorycheck.item.index'),
 				'itemByCode' => $this->urlGenerator->linkToRoute('inventorycheck.item.byCode', ['code' => '__CODE__']),
 				'itemLabel' => $this->urlGenerator->linkToRoute('inventorycheck.item.label', ['id' => 0]),
+				'itemQr' => $this->urlGenerator->linkToRoute('inventorycheck.item.qr', ['id' => 0]),
 				'itemLabelPrint' => $this->urlGenerator->linkToRoute('inventorycheck.item.labelPrint', ['id' => 0]),
 				'itemBulkLabels' => $this->urlGenerator->linkToRoute('inventorycheck.item.bulkLabels'),
 				'itemPhoto' => $this->urlGenerator->linkToRoute('inventorycheck.itemPhoto.show', ['id' => 0]),
@@ -293,6 +295,7 @@ class PageController extends Controller
 				'configNotify' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveNotify'),
 				'configFractional' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveFractional'),
 				'configWaveD' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveWaveD'),
+				'configCodes' => $this->urlGenerator->linkToRoute('inventorycheck.config.saveCodes'),
 				'reasonCodes' => $this->urlGenerator->linkToRoute('inventorycheck.config.reasonCodes'),
 				'configLocationAcl' => $this->urlGenerator->linkToRoute('inventorycheck.config.locationAcl'),
 				'productLookup' => $this->urlGenerator->linkToRoute('inventorycheck.productLookup.lookup'),

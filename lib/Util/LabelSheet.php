@@ -19,7 +19,7 @@ final class LabelSheet
 	/**
 	 * @param list<array{scanCode: string, sku: string, name: string}> $items
 	 */
-	public static function html(array $items): string
+	public static function html(array $items, array $elements = []): string
 	{
 		if ($items === []) {
 			throw new \InvalidArgumentException('no_items');
@@ -34,6 +34,7 @@ final class LabelSheet
 					(string)$item['scanCode'],
 					(string)$item['sku'],
 					(string)$item['name'],
+					$elements,
 				);
 				$svg = preg_replace('/^<\?xml[^?]*\?>\s*/', '', $svg) ?? $svg;
 				$tiles[] = '<div class="iv-label-tile" role="group" aria-label="'

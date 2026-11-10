@@ -28,7 +28,7 @@ return [
 		['name' => 'page#settings', 'url' => '/settings', 'verb' => 'GET'],
 		// {section} allowlist pinned to SettingsSectionCatalog::routeRequirement() by SettingsPagesContractTest.
 		['name' => 'page#settingsSection', 'url' => '/settings/{section}', 'verb' => 'GET',
-			'requirements' => ['section' => 'members|stock|notifications|quantities|location-access|connections|policies|scanners']],
+			'requirements' => ['section' => 'members|stock|notifications|quantities|location-access|connections|policies|scanners|codes']],
 
 		['name' => 'location#index', 'url' => '/api/locations', 'verb' => 'GET'],
 		['name' => 'location#byCode', 'url' => '/api/locations/by-code/{code}', 'verb' => 'GET', 'requirements' => ['code' => '[^/]+']],
@@ -44,6 +44,8 @@ return [
 		['name' => 'item#index', 'url' => '/api/items', 'verb' => 'GET'],
 		['name' => 'item#byCode', 'url' => '/api/items/by-code/{code}', 'verb' => 'GET', 'requirements' => ['code' => '[^/]+']],
 		['name' => 'item#label', 'url' => '/api/items/{id}/label.svg', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
+		['name' => 'item#qr', 'url' => '/api/items/{id}/qr.svg', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
+		['name' => 'item#barcode', 'url' => '/api/items/{id}/barcode.svg', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
 		['name' => 'item#labelAlias', 'url' => '/api/items/{id}/label', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
 		['name' => 'item#labelPrint', 'url' => '/items/{id}/label', 'verb' => 'GET', 'requirements' => ['id' => '\\d+']],
 		['name' => 'item#bulkLabels', 'url' => '/api/items/labels', 'verb' => 'GET'],
@@ -96,6 +98,7 @@ return [
 		['name' => 'administration#save', 'url' => '/api/admin/config', 'verb' => 'POST'],
 		['name' => 'config#saveStock', 'url' => '/api/config/stock', 'verb' => 'POST'],
 		['name' => 'config#index', 'url' => '/api/config', 'verb' => 'GET'],
+		['name' => 'config#saveCodes', 'url' => '/api/config/codes', 'verb' => 'POST'],
 		['name' => 'config#saveNotify', 'url' => '/api/config/notify', 'verb' => 'POST'],
 		['name' => 'config#saveFractional', 'url' => '/api/config/fractional', 'verb' => 'POST'],
 		['name' => 'config#saveWaveD', 'url' => '/api/config/wave-d', 'verb' => 'POST'],

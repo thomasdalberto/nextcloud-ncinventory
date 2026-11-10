@@ -1551,7 +1551,191 @@
 
 	// ── Pages ───────────────────────────────────────────────────────────
 
+	function isMobileDashboard() {
+		return !!(window.matchMedia && window.matchMedia('(max-width: 760px), (pointer: coarse)').matches);
+	}
+
+	/** Mobile scan-and-count workflow. Edits remain local until explicit confirmation. */
+	function renderMobileScan(ctx) {
+		var mount = ctx.mount;
+		ctx.mobileScanActive = true;
+		clear(mount);
+		clear(ctx.actions);
+		ctx.actions.appendChild(btn(tr('Back to dashboard'), {onclick: function () { stopCamera(); renderDashboard(ctx); }}));
+		mount.appendChild(el('section', {className: 'iv-section iv-card iv-mobile-scan'}, [
+			el('h2', {className: 'iv-section__title', text: tr('Scan item')}),
+			el('p', {className: 'iv-muted', text: tr('Scan a barcode or enter the SKU or scan code to review stock by location.')}),
+		]));
+		var host = mount.lastChild;
+		var entry = el('input', {type: 'search', className: 'iv-input', placeholder: tr('Scan or type SKU / code'), autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': tr('Scan or type SKU / code')});
+		var scanButton = btn(tr('Find item'), {primary: true, className: 'iv-btn--touch'});
+		var cameraButton = btn(tr('Try camera again'), {className: 'iv-btn--touch'});
+		var status = el('p', {className: 'iv-field__hint', role: 'status'});
+		var result = el('div', {className: 'iv-mobile-scan-result'});
+		var actions = el('div', {className: 'iv-form-actions'}, [scanButton, cameraButton]);
+		host.appendChild(field(tr('Item code'), entry));
+		host.appendChild(actions);
+		host.appendChild(status);
+		host.appendChild(result);
+		var qrScanner = null;
+		var busy = false;
+		function stopCamera() {
+			if (qrScanner) {
+				try {qrScanner.stop(); qrScanner.destroy();} catch (e) { /* already stopped */ }
+				qrScanner = null;
+			}
+			var video = host.querySelector('video');
+			if (video) video.remove();
+		}
+		function showItem(code) {
+			code = String(code || '').trim();
+			if (!code || busy) return;
+			busy = true;
+			entry.value = code;
+			clear(result);
+			status.textContent = tr('Looking up item…');
+			var path = (ctx.urls.api.itemByCode || '').replace('__CODE__', encodeURIComponent(code));
+			Promise.all([
+				api('GET', path),
+			]).then(function (values) {
+				var item = values[0];
+				return Promise.all([
+					Promise.resolve(item),
+					api('GET', ctx.urls.api.locations + '?active=1&limit=200&offset=0'),
+					api('GET', ctx.urls.api.balances + '?itemId=' + encodeURIComponent(item.id) + '&limit=200&offset=0'),
+				]);
+			}).then(function (values) {
+				var item = values[0], locations = values[1].data || [], balances = values[2].data || [];
+				status.textContent = '';
+				if (item.trackMode && item.trackMode !== 'none') {
+					result.appendChild(el('p', {className: 'iv-field__hint', text: tr('This item uses lot or serial tracking. Use Adjust stock to record a tracked count.')}));
+					return;
+				}
+				var balMap = {};
+				balances.forEach(function (b) {balMap[String(b.locationId)] = Number(b.qty) || 0;});
+				var edits = {};
+				var step = Number(ctx.qtyScale) === 3 ? 0.001 : 1;
+				var panel = el('section', {className: 'iv-mobile-count'});
+				panel.appendChild(el('header', {className: 'iv-mobile-count__header'}, [
+					el('h3', {text: item.name}),
+					el('p', {className: 'iv-muted', text: tr('SKU') + ': ' + item.sku + (item.scanCode !== item.sku ? ' · ' + tr('Scan code') + ': ' + item.scanCode : '')}),
+				]));
+				if (!locations.length) panel.appendChild(el('p', {className: 'iv-muted', text: tr('No active locations are available to you.')}));
+				locations.forEach(function (location) {
+					var original = Number(balMap[String(location.id)] || 0);
+					var state = {original: original, delta: 0, total: original};
+					edits[String(location.id)] = state;
+					var deltaInput = el('input', {type: 'number', className: 'iv-input iv-count-delta', step: String(step), value: '0', 'aria-label': tr('Change at {location}', {location: location.name})});
+					var totalInput = el('input', {type: 'number', className: 'iv-input iv-count-total', step: String(step), min: ctx.allowNegative ? null : '0', value: String(original), 'aria-label': tr('New total at {location}', {location: location.name})});
+					var originalNode = el('strong', {text: formatQty(original)});
+					var deltaNode = el('strong', {text: formatQty(0)});
+					var totalNode = el('strong', {text: formatQty(original)});
+					var minus = btn('−', {className: 'iv-count-step', 'aria-label': tr('Decrease by {qty}', {qty: formatQty(step)}), onclick: function () {setDelta(state.delta - step);}});
+					var plus = btn('+', {className: 'iv-count-step', 'aria-label': tr('Increase by {qty}', {qty: formatQty(step)}), onclick: function () {setDelta(state.delta + step);}});
+					function cleanQty(value) {var n = Number(value); if (!Number.isFinite(n)) return 0; n = ctx.qtyScale === 3 ? Math.round(n * 1000) / 1000 : Math.round(n); return !ctx.allowNegative && n < 0 ? 0 : n;}
+					function paint() {
+						state.delta = cleanQty(state.delta); state.total = cleanQty(state.total);
+						deltaInput.value = String(state.delta); totalInput.value = String(state.total);
+						deltaNode.textContent = (state.delta > 0 ? '+' : '') + formatQty(state.delta);
+						totalNode.textContent = formatQty(state.total);
+						row.classList.toggle('is-changed', state.delta !== 0);
+						confirm.disabled = !Object.keys(edits).some(function (key) {return edits[key].delta !== 0;});
+					}
+					function setDelta(value) {state.delta = cleanQty(value); if (!ctx.allowNegative && state.original + state.delta < 0) state.delta = -state.original; state.total = cleanQty(state.original + state.delta); paint();}
+					deltaInput.addEventListener('input', function () {setDelta(deltaInput.value);});
+					totalInput.addEventListener('input', function () {state.total = cleanQty(totalInput.value); state.delta = cleanQty(state.total - state.original); paint();});
+					var row = el('article', {className: 'iv-mobile-count__location'}, [
+						el('h4', {text: location.name + ' · ' + location.code}),
+						el('div', {className: 'iv-mobile-count__equation'}, [el('span', {}, [el('small', {text: tr('Original')}), originalNode]), el('span', {}, [el('small', {text: tr('Change')}), deltaNode]), el('span', {}, [el('small', {text: tr('New total')}), totalNode])]),
+						el('p', {className: 'iv-muted', text: tr('Edit change amount or new total')}),
+						el('div', {className: 'iv-mobile-count__inputs'}, [minus, deltaInput, plus, totalInput]),
+					]);
+					panel.appendChild(row);
+				});
+				var reasonCode = el('select', {className: 'iv-input', 'aria-label': tr('Reason code')});
+				var confirm = btn(tr('Confirm changes'), {primary: true, className: 'iv-btn--touch', disabled: true});
+				var reasonHost = el('div');
+				if (ctx.requireAdjustReason) {
+					reasonHost.appendChild(field(tr('Reason code'), reasonCode));
+					api('GET', ctx.urls.api.reasonCodes).then(function (catalog) {
+						clear(reasonCode); reasonCode.appendChild(el('option', {value: '', text: tr('Choose a reason code')}));
+						(catalog.data || []).forEach(function (r) {reasonCode.appendChild(el('option', {value: r.code, text: r.labelEn || r.code}));});
+					}).catch(function () {status.textContent = tr('Could not load reason codes. Try again.');});
+				}
+				confirm.addEventListener('click', function () {
+					var changed = Object.keys(edits).filter(function (key) {return edits[key].delta !== 0;});
+					if (!changed.length || (ctx.requireAdjustReason && !reasonCode.value)) {status.textContent = tr('Select a reason and change at least one location.'); return;}
+					confirm.disabled = true; status.textContent = tr('Saving location adjustments…');
+					var done = [];
+					changed.reduce(function (promise, key) {
+						return promise.then(function () {
+							return api('POST', ctx.urls.api.movementAdjust, {itemId: Number(item.id), locationId: Number(key), mode: 'set', qty: String(edits[key].total), reason: tr('Mobile scanned count'), reasonCode: reasonCode.value || null}).then(function () {done.push(key);});
+						});
+					}, Promise.resolve()).then(function () {
+						toast(tr('Stock adjusted at {count} locations.', {count: done.length}));
+						showItem(item.scanCode || item.sku);
+					}).catch(function (err) {
+						toast(tr('Some adjustments could not be saved. Current balances are being refreshed.'), true);
+						showItem(item.scanCode || item.sku);
+					});
+				});
+				panel.appendChild(reasonHost);
+				panel.appendChild(confirm);
+				result.appendChild(panel);
+			}).catch(function (err) {
+				status.textContent = err.message || tr('Item not found. Try another code.');
+			}).finally(function () {busy = false;});
+		}
+		scanButton.addEventListener('click', function () {showItem(entry.value);});
+		entry.addEventListener('keydown', function (ev) {if (ev.key === 'Enter') {ev.preventDefault(); showItem(entry.value);}});
+		function startCamera() {
+			if (!window.isSecureContext) {
+				status.textContent = tr('Camera access requires HTTPS on this device. You can still scan with a handheld scanner or type the code.'); return;
+			}
+			if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+				status.textContent = tr('This browser cannot access the camera. Use a handheld scanner or enter the code.'); return;
+			}
+			if (typeof window.QrScanner !== 'function') {
+				status.textContent = tr('QR scanning is unavailable in this browser. Use a handheld scanner or enter the code.'); return;
+			}
+			status.textContent = tr('Point the camera at an item QR code or barcode.');
+			var video = el('video', {className: 'iv-mobile-scan-video', autoplay: '', playsinline: '', muted: ''});
+			host.insertBefore(video, result);
+			qrScanner = new window.QrScanner(video, function (decoded) {
+				var value = typeof decoded === 'string' ? decoded : decoded.data;
+				stopCamera(); showItem(value);
+			}, {
+				preferredCamera: 'environment',
+				maxScansPerSecond: 12,
+				highlightScanRegion: false,
+				highlightCodeOutline: false,
+				calculateScanRegion: function (videoElement) {
+					var width = videoElement.videoWidth, height = videoElement.videoHeight;
+					var scale = Math.min(1, 800 / Math.max(width, height));
+					return {
+						x: 0, y: 0, width: width, height: height,
+						downScaledWidth: Math.max(1, Math.round(width * scale)),
+						downScaledHeight: Math.max(1, Math.round(height * scale)),
+					};
+				},
+			});
+			qrScanner.start().then(function () {
+				status.textContent = tr('Camera ready. Point it at the item QR code.');
+			}).catch(function (err) {
+				status.textContent = err && err.name === 'NotAllowedError'
+					? tr('Camera permission was denied. Allow camera access or enter the code manually.')
+					: tr('Camera is unavailable. You can enter the code manually.');
+				stopCamera();
+			});
+		}
+		cameraButton.addEventListener('click', startCamera);
+		// The dashboard action is itself a user gesture, so attempt camera startup
+		// immediately; keep manual/hardware scanner entry available as a fallback.
+		startCamera();
+	}
+
 	function renderDashboard(ctx) {
+		ctx.mobileScanActive = false;
 		var mount = ctx.mount;
 		setBusy(mount, true);
 		clear(mount);
@@ -1566,6 +1750,7 @@
 			fetches.push(api('GET', ctx.urls.api.lowStockPerLocation + '?limit=20&offset=0'));
 		}
 		Promise.all(fetches).then(function (results) {
+			if (ctx.mobileScanActive) return;
 			var low = results[0];
 			var mov = results[1];
 			var idx = 2;
@@ -1581,26 +1766,31 @@
 			setBusy(mount, false);
 
 			clear(ctx.actions);
-			// Bachus: role-aware primary — office receives, field issues; transfer/adjust under "More".
-			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
-				ctx.actions.appendChild(btn(tr('Receive stock'), {
-							'data-iv-action': 'receive',
-					primary: true,
-					className: 'iv-btn--touch',
-					onclick: function () { openReceiveDialog(ctx); },
+			var mobileDashboard = isMobileDashboard();
+			if (mobileDashboard) {
+				ctx.actions.appendChild(btn(tr('Scan'), {
+					primary: true, className: 'iv-btn--touch', disabled: !ctx.canWrite,
+					onclick: function () { renderMobileScan(ctx); },
+				}));
+			} else {
+				// Desktop keeps the receive/issue shortcuts; transfer and adjust stay under More.
+				if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
+					ctx.actions.appendChild(btn(tr('Receive stock'), {
+						'data-iv-action': 'receive', primary: true, className: 'iv-btn--touch',
+						onclick: function () { openReceiveDialog(ctx); },
+					}));
+				}
+				ctx.actions.appendChild(btn(tr('Issue stock'), {
+					'data-iv-action': 'issue', primary: !ctx.canWrite, className: 'iv-btn--touch',
+					onclick: function () { openIssueDialog(ctx); },
 				}));
 			}
-			ctx.actions.appendChild(btn(tr('Issue stock'), {
-							'data-iv-action': 'issue',
-				primary: !ctx.canWrite,
-				className: 'iv-btn--touch',
-				onclick: function () { openIssueDialog(ctx); },
-			}));
-			var moreKids = [
-				btn(tr('Transfer stock'), {
-					onclick: function () { openTransferDialog(ctx); },
-				}),
-			];
+			var moreKids = [];
+			if (mobileDashboard) {
+				moreKids.push(btn(tr('Receive stock'), {onclick: function () { openReceiveDialog(ctx); }}));
+				moreKids.push(btn(tr('Issue stock'), {onclick: function () { openIssueDialog(ctx); }}));
+			}
+			moreKids.push(btn(tr('Transfer stock'), {onclick: function () { openTransferDialog(ctx); }}));
 			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				moreKids.push(btn(tr('Adjust stock'), {
 					onclick: function () { openAdjustDialog(ctx); },
@@ -1627,6 +1817,7 @@
 				api('GET', ctx.urls.api.items + '?limit=200&offset=0&active=1'),
 				api('GET', ctx.urls.api.locations + '?limit=200&offset=0&active=1'),
 			]).then(function (lookups) {
+				if (ctx.mobileScanActive) return;
 				var itemMap = indexById(lookups[0].data);
 				var locMap = indexById(lookups[1].data);
 
@@ -1821,6 +2012,7 @@
 				]));
 			});
 		}).catch(function (err) {
+			if (ctx.mobileScanActive) return;
 			setBusy(mount, false);
 			clear(mount);
 			mount.appendChild(loadErrorPanel(err.message || tr('Could not load dashboard'), function () {
@@ -1881,6 +2073,10 @@
 
 	function labelSvgUrl(ctx, id) {
 		return workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.itemLabel, id));
+	}
+
+	function itemQrUrl(ctx, id) {
+		return workspaceResourceUrl(ctx, urlWithId(ctx.urls.api.itemQr, id));
 	}
 
 	/**
@@ -2895,7 +3091,14 @@
 						}
 						return el('span', { className: 'iv-name-with-status' }, kids);
 					} },
-					{ label: tr('SKU'), key: 'sku' },
+					{ label: tr('SKU'), render: function (r) {
+						var qrUrl = itemQrUrl(ctx, r.id);
+						var preview = el('img', {className: 'iv-sku-qr', src: qrUrl + (qrUrl.indexOf('?') === -1 ? '?' : '&') + 'v=' + encodeURIComponent(String(r.updatedAt || r.scanCode || r.id)), alt: tr('QR code for {code}', {code: r.sku}), loading: 'lazy'});
+						var holder = el('button', {type: 'button', className: 'iv-sku-qr-button', title: tr('Click to enlarge QR code'), 'aria-label': tr('Show QR code for {code}', {code: r.sku}), onclick: function () { holder.classList.toggle('is-zoomed'); }});
+						holder.appendChild(preview);
+						holder.appendChild(el('span', {className: 'iv-sku-qr-code', text: r.sku}));
+						return holder;
+					} },
 					{ label: tr('Scan code'), key: 'scanCode' },
 					{ label: tr('UoM'), key: 'uom' },
 					{ label: tr('Reorder'), key: 'reorderLevel' },
@@ -3156,10 +3359,10 @@
 			}));
 			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(actionsMoreMenu(tr('More'), [
-					btn(item.active ? tr('Deactivate') : tr('Reactivate'), {
+					btn(item.active ? tr('Archive') : tr('Restore from archive'), {
 						onclick: function () {
 							api('PUT', entityUrl(ctx.urls.api.items, id), { active: !item.active }).then(function () {
-								toast(item.active ? tr('Item deactivated.') : tr('Item reactivated.'));
+								toast(item.active ? tr('Item archived.') : tr('Item restored.'));
 								renderItemDetail(ctx);
 							}).catch(function (err) { toast(err.message, true); });
 						},
@@ -3548,10 +3751,10 @@
 			}
 			if (ctx.workspaceRole !== 'viewer' && ctx.canWrite) {
 				ctx.actions.appendChild(actionsMoreMenu(tr('More'), [
-					btn(loc.active ? tr('Deactivate') : tr('Reactivate'), {
+					btn(loc.active ? tr('Archive') : tr('Restore from archive'), {
 						onclick: function () {
 							api('PUT', entityUrl(ctx.urls.api.locations, id), { active: !loc.active }).then(function () {
-								toast(loc.active ? tr('Location deactivated.') : tr('Location reactivated.'));
+								toast(loc.active ? tr('Location archived.') : tr('Location restored.'));
 								renderLocationDetail(ctx);
 							}).catch(function (err) { toast(err.message, true); });
 						},
@@ -4696,6 +4899,29 @@
 				return api('POST', url, payload).then(function () { toast(tr('Settings saved.')); })
 					.catch(function (err) { applyFieldErrors(mount, err.details, err.message); toast(err.message, true); })
 					.finally(function () { if (trigger) trigger.disabled = false; });
+			}
+			if (section === 'codes') {
+				var autoSku = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-auto-sku', checked: cfg.autoSku ? '' : null});
+				var skuPrefix = el('input', {type: 'text', className: 'iv-input', maxlength: '48', value: cfg.skuPrefix || 'SKU-'});
+				var labelElements = el('fieldset', {className: 'iv-fieldset'}, [el('legend', {text: tr('Label elements')})]);
+				var elementInputs = {};
+				[
+					['qr', tr('QR code')], ['barcode', tr('Code 128 barcode')], ['name', tr('Item name')],
+					['sku', tr('SKU text')], ['code', tr('Scan code text')], ['branding', tr('InventoryCheck name')],
+				].forEach(function (entry) {
+					var input = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-label-element-' + entry[0], checked: (cfg.labelElements || []).includes(entry[0]) ? '' : null});
+					elementInputs[entry[0]] = input;
+					labelElements.appendChild(settingsSwitchField(input, entry[1]));
+				});
+				mount.appendChild(settingsPageSection('codes', 'iv-codes-title', [
+					settingsSrTitle('iv-codes-title', tr('SKU and labels')),
+					settingsSwitchField(autoSku, tr('Generate an SKU automatically when creating an item')),
+					field(tr('SKU prefix'), skuPrefix),
+					labelElements,
+					settingsFormActions(btn(tr('Save code and label settings'), {primary: true, onclick: function (ev) {
+						return save(ctx.urls.api.configCodes, {autoSku: autoSku.checked, skuPrefix: skuPrefix.value.trim(), labelElements: Object.keys(elementInputs).filter(function (key) {return elementInputs[key].checked;})}, ev.currentTarget);
+					}})),
+				]));
 			}
 			if (section === 'stock') {
 				var neg = el('input', {type: 'checkbox', className: 'iv-switch__input', id: 'iv-allow-negative', checked: cfg.allowNegativeStock ? '' : null});

@@ -62,7 +62,32 @@ class ConfigController extends Controller
 			'requireLocationScan' => LocationScanPolicy::isRequired($this->settings),
 			'productLookupEnabled' => $this->productLookup->isEnabled(),
 			'productLookupAutofire' => $this->productLookup->isAutofire(),
+			'autoSku' => $this->settings->get('auto_sku', '0') === '1',
+			'skuPrefix' => $this->settings->get('sku_prefix', 'SKU-'),
+			'labelElements' => $this->settings->getList('label_elements') ?: \OCA\InventoryCheck\Util\LabelComposer::DEFAULT_ELEMENTS,
 		]);
+	}
+
+	#[NoAdminRequired]
+	public function saveCodes(): JSONResponse
+	{
+		$uid = $this->access->currentUserId();
+		$this->access->requireWorkspaceAdmin($uid);
+		$p = $this->request->getParams();
+		$auto = $this->parseBool($p['autoSku'] ?? false, 'autoSku');
+		$prefix = trim((string)($p['skuPrefix'] ?? 'SKU-'));
+		$elements = $p['labelElements'] ?? \OCA\InventoryCheck\Util\LabelComposer::DEFAULT_ELEMENTS;
+		if (!is_array($elements) || $elements === [] || array_filter($elements, static fn ($v): bool => !is_string($v)
+			|| !in_array($v, \OCA\InventoryCheck\Util\LabelComposer::ELEMENTS, true)) !== []) {
+			throw new ValidationException('validation_failed', '', [['field' => 'labelElements', 'code' => 'invalid_value']]);
+		}
+		if ($prefix === '' || mb_strlen($prefix) > 48 || !preg_match('/^[A-Za-z0-9._-]+$/', $prefix)) {
+			throw new ValidationException('validation_failed', '', [['field' => 'skuPrefix', 'code' => 'invalid_code_format']]);
+		}
+		$this->settings->set('auto_sku', $auto ? '1' : '0');
+		$this->settings->set('sku_prefix', $prefix);
+		$this->settings->setList('label_elements', $elements);
+		return $this->index();
 	}
 
 	#[NoAdminRequired]

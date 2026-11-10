@@ -14,6 +14,7 @@ use OCA\InventoryCheck\Service\QtyScale;
 use OCA\InventoryCheck\Service\WorkspaceContext;
 use OCA\InventoryCheck\Util\LabelSheet;
 use OCA\InventoryCheck\Util\LabelSvg;
+use OCA\InventoryCheck\Util\CodeElements;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -79,8 +80,27 @@ class ItemController extends Controller
 			(string)$item['scanCode'],
 			(string)$item['sku'],
 			(string)$item['name'],
+			$this->settings->getList('label_elements'),
 		);
 		return new DataDownloadResponse($svg, 'label-' . $id . '.svg', 'image/svg+xml');
+	}
+
+	/** Reusable standalone QR element, also used by the label composer. */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function qr(int $id): DataDownloadResponse
+	{
+		$item = $this->items->get($this->access->currentUserId(), $id);
+		return new DataDownloadResponse(CodeElements::qr((string)$item['scanCode']), 'qr-' . $id . '.svg', 'image/svg+xml');
+	}
+
+	/** Reusable standalone Code 128 element for API consumers and labels. */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function barcode(int $id): DataDownloadResponse
+	{
+		$item = $this->items->get($this->access->currentUserId(), $id);
+		return new DataDownloadResponse(CodeElements::barcode((string)$item['scanCode']), 'barcode-' . $id . '.svg', 'image/svg+xml');
 	}
 
 	/** SPEC §7.3 canonical path — same SVG payload as label.svg. */
@@ -103,6 +123,7 @@ class ItemController extends Controller
 			(string)$item['scanCode'],
 			(string)$item['sku'],
 			(string)$item['name'],
+			$this->settings->getList('label_elements'),
 		);
 		$response = new TemplateResponse(
 			Application::APP_ID,
@@ -158,7 +179,7 @@ class ItemController extends Controller
 			'scanCode' => (string)$i['scanCode'],
 			'sku' => (string)$i['sku'],
 			'name' => (string)$i['name'],
-		], $items));
+			], $items), $this->settings->getList('label_elements'));
 
 		$response = new TemplateResponse(
 			Application::APP_ID,
